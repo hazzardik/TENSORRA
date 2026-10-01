@@ -216,8 +216,16 @@ export default function ChatApp() {
     try {
       const form = new FormData(); form.append("file", file);
       const response = await fetch("/api/documents", { method: "POST", body: form });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error ?? "Upload failed");
+      const raw = await response.text();
+      let data: { error?: string } = {};
+      if (raw) {
+        try {
+          data = JSON.parse(raw) as { error?: string };
+        } catch {
+          if (!response.ok) throw new Error(raw.slice(0, 500) || `Upload failed (${response.status})`);
+        }
+      }
+      if (!response.ok) throw new Error(data.error ?? `Upload failed (${response.status})`);
       setNotice(`${file.name} added to TENSORRA knowledge.`);
       await loadDocuments();
       setPanel("files");
