@@ -9,13 +9,16 @@ export async function GET() {
   };
 
   const ready = Object.values(required).every(Boolean);
+
   return Response.json(
     {
       service: "TENSORRA",
       version: "0.8.0",
       status: ready ? "ready" : "configuration_required",
       checks: required,
-      features: {\n        smartRouter: true,\n        chatManagement: true,
+      features: {
+        smartRouter: true,
+        chatManagement: true,
         autonomousWeb: true,
         autonomousCode: true,
         vision: true,
@@ -25,6 +28,9 @@ export async function GET() {
       },
       timestamp: new Date().toISOString(),
     },
-    { status: ready ? 200 : 503, headers: { "Cache-Control": "no-store" } },
+    {
+      status: ready ? 200 : 503,
+      headers: { "Cache-Control": "no-store" },
+    },
   );
 }
