@@ -8,6 +8,7 @@ import InstallAppButton from "./install-app-button";
 
 type Chat = { id: string; title: string; mode: ThinkingMode; created_at: string; updated_at: string };
 type ResearchSource = { title: string; url: string; score?: number };
+type ChatAttachment = { kind: "image" | "document"; filename: string; document_id?: string };
 type Message = {
   id?: string;
   role: "user" | "assistant";
@@ -18,10 +19,10 @@ type Message = {
     sources?: ResearchSource[];
     vision?: boolean;
     image_filename?: string;
+    attachments?: ChatAttachment[];
   } | null;
 };
 type Memory = { id: string; content: string; category: string; importance: number; created_at: string };
-type Document = { id: string; filename: string; status: string; size_bytes: number | null; created_at: string };
 type SpeechRecognitionResultLike = { isFinal: boolean; 0?: { transcript?: string } };
 type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResultLike> };
 type SpeechRecognitionLike = {
@@ -44,6 +45,17 @@ const MODES: Array<{ id: ThinkingMode; label: string; hint: string }> = [
   { id: "max", label: "Max", hint: "120B · high + verification" },
 ];
 
+const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const DOCUMENT_TYPES = new Set(["application/pdf", "text/plain", "text/markdown", "application/json"]);
+
+function isImageFile(file: File) {
+  return IMAGE_TYPES.has(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name);
+}
+
+function isDocumentFile(file: File) {
+  return DOCUMENT_TYPES.has(file.type) || /\.(pdf|txt|md|json)$/i.test(file.name);
+}
+
 export default function ChatApp() {
   const router = useRouter();
   const [supabase] = useState(() => createClient());
@@ -53,70 +65,84 @@ export default function ChatApp() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [panel, setPanel] = useState<"none" | "memory" | "files">("none");
+  const [panel, setPanel] = useState<"none" | "memory">("none");
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>("auto");
   const [allowTraining, setAllowTraining] = useState(false);
   const [feedback, setFeedback] = useState<Record<string, -1 | 1>>({});
-  const [webTool, setWebTool] = useState(true);
-  const [codeTool, setCodeTool] = useState(true);
-  const [researchMode, setResearchMode] = useState(false);
   const [listening, setListening] = useState(false);
   const [memories, setMemories] = useState<Memory[]>([]);
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [pendingImage, setPendingImage] = useState<File | null>(null);
+  const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
   const [notice, setNotice] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
-  const fileInput = useRef<HTMLInputElement | null>(null);
-  const imageInput = useRef<HTMLInputElement | null>(null);
+  const attachInput = useRef<HTMLInputElement | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const loadChats = useCallback(async () => {
-    const { data, error } = await supabase.from("chats").select("id,title,mode,created_at,updated_at").order("updated_at", { ascending: false }).limit(100);
+    const { data, error } = await supabase
+      .from("chats")
+      .select("id,title,mode,created_at,updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(100);
     if (!error) setChats((data ?? []) as Chat[]);
   }, [supabase]);
 
   const loadMessages = useCallback(async (chatId: string) => {
-    const { data, error } = await supabase.from("messages").select("id,role,content,model_name,created_at,metadata").eq("chat_id", chatId).in("role", ["user", "assistant"]).order("created_at", { ascending: true });
+    const { data, error } = await supabase
+      .from("messages")
+      .select("id,role,content,model_name,created_at,metadata")
+      .eq("chat_id", chatId)
+      .in("role", ["user", "assistant"])
+      .order("created_at", { ascending: true });
     if (!error) setMessages((data ?? []) as Message[]);
   }, [supabase]);
 
   const loadMemories = useCallback(async () => {
-    const { data } = await supabase.from("memories").select("id,content,category,importance,created_at").order("importance", { ascending: false }).order("created_at", { ascending: false }).limit(150);
+    const { data } = await supabase
+      .from("memories")
+      .select("id,content,category,importance,created_at")
+      .order("importance", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(150);
     setMemories((data ?? []) as Memory[]);
-  }, [supabase]);
-
-  const loadDocuments = useCallback(async () => {
-    const { data } = await supabase.from("documents").select("id,filename,status,size_bytes,created_at").order("created_at", { ascending: false }).limit(100);
-    setDocuments((data ?? []) as Document[]);
   }, [supabase]);
 
   useEffect(() => {
     void loadChats();
-    void loadDocuments();
     void (async () => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) return;
-      const { data } = await supabase.from("profiles").select("allow_training").eq("id", userData.user.id).maybeSingle();
+      const { data } = await supabase
+        .from("profiles")
+        .select("allow_training")
+        .eq("id", userData.user.id)
+        .maybeSingle();
       if (data) setAllowTraining(Boolean(data.allow_training));
     })();
-  }, [loadChats, loadDocuments, supabase]);
+  }, [loadChats, supabase]);
 
   useEffect(() => {
     if (activeChatId) {
       const chat = chats.find((item) => item.id === activeChatId);
       if (chat?.mode) setThinkingMode(chat.mode);
       if (!loading) void loadMessages(activeChatId);
-    } else if (!loading) setMessages([]);
+    } else if (!loading) {
+      setMessages([]);
+    }
   }, [activeChatId, chats, loadMessages, loading]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
   async function ensureChat() {
     if (activeChatId) return activeChatId;
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) throw new Error("Session expired");
-    const { data, error } = await supabase.from("chats").insert({ user_id: userData.user.id, title: "New chat", mode: thinkingMode }).select("id").single();
+    const { data, error } = await supabase
+      .from("chats")
+      .insert({ user_id: userData.user.id, title: "New chat", mode: thinkingMode })
+      .select("id")
+      .single();
     if (error) throw error;
     setActiveChatId(data.id);
     await loadChats();
@@ -127,23 +153,65 @@ export default function ChatApp() {
     setThinkingMode(mode);
     if (!activeChatId) return;
     const { error } = await supabase.from("chats").update({ mode }).eq("id", activeChatId);
-    if (!error) setChats((current) => current.map((chat) => chat.id === activeChatId ? { ...chat, mode } : chat));
+    if (!error) {
+      setChats((current) => current.map((chat) => chat.id === activeChatId ? { ...chat, mode } : chat));
+    }
+  }
+
+  function selectAttachment(file: File) {
+    if (!isImageFile(file) && !isDocumentFile(file)) {
+      setNotice("Supported attachments: PDF, TXT, Markdown, JSON, JPG, PNG and WebP.");
+      return;
+    }
+
+    const maxSize = isImageFile(file) ? 8 * 1024 * 1024 : 15 * 1024 * 1024;
+    if (file.size <= 0 || file.size > maxSize) {
+      setNotice(isImageFile(file) ? "Image must be 8 MB or smaller." : "Document must be 15 MB or smaller.");
+      return;
+    }
+
+    setPendingAttachment(file);
+    setNotice("");
+  }
+
+  async function readError(response: Response, fallback: string) {
+    const raw = await response.text().catch(() => "");
+    if (!raw) return fallback;
+    try {
+      const parsed = JSON.parse(raw) as { error?: string };
+      return parsed.error || fallback;
+    } catch {
+      return raw.slice(0, 600);
+    }
   }
 
   async function send(event: FormEvent) {
     event.preventDefault();
-    const image = pendingImage;
+    const attachment = pendingAttachment;
     const text = input.trim();
-    if ((!text && !image) || loading) return;
+    if ((!text && !attachment) || loading) return;
 
-    const prompt = text || "Analyze this image and explain the important details.";
-    setInput(""); setLoading(true); setNotice("");
+    const image = attachment && isImageFile(attachment) ? attachment : null;
+    const document = attachment && isDocumentFile(attachment) ? attachment : null;
+    const prompt = text || (
+      image
+        ? "Analyze this image and explain the important details."
+        : "Read this document and tell me the most important information."
+    );
+
+    const optimisticAttachment: ChatAttachment | undefined = attachment
+      ? { kind: image ? "image" : "document", filename: attachment.name }
+      : undefined;
+
+    setInput("");
+    setLoading(true);
+    setNotice("");
     setMessages((current) => [
       ...current,
       {
         role: "user",
-        content: image ? `${prompt}\n\n[Image: ${image.name}]` : prompt,
-        metadata: image ? { vision: true, image_filename: image.name } : null,
+        content: prompt,
+        metadata: optimisticAttachment ? { attachments: [optimisticAttachment] } : null,
       },
       { role: "assistant", content: "" },
     ]);
@@ -159,14 +227,30 @@ export default function ChatApp() {
         form.append("image", image);
         response = await fetch("/api/vision", { method: "POST", body: form });
       } else {
+        let documentIds: string[] = [];
+
+        if (document) {
+          const form = new FormData();
+          form.append("chatId", chatId);
+          form.append("file", document);
+          const upload = await fetch("/api/documents", { method: "POST", body: form });
+          if (!upload.ok) throw new Error(await readError(upload, "Document upload failed"));
+
+          const raw = await upload.text();
+          const data = raw ? JSON.parse(raw) as { document?: { id?: string } } : {};
+          const documentId = data.document?.id;
+          if (!documentId) throw new Error("TENSORRA could not attach the document to this chat.");
+          documentIds = [documentId];
+        }
+
         response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chatId, message: prompt, tools: { web: webTool, code: codeTool }, research: researchMode }),
+          body: JSON.stringify({ chatId, message: prompt, documentIds }),
         });
       }
 
-      if (!response.ok) throw new Error((await response.text()) || "TENSORRA request failed");
+      if (!response.ok) throw new Error(await readError(response, "TENSORRA request failed"));
       if (!response.body) throw new Error("Streaming response is unavailable");
 
       const reader = response.body.getReader();
@@ -179,12 +263,14 @@ export default function ChatApp() {
         setMessages((current) => {
           const copy = [...current];
           const last = copy[copy.length - 1];
-          if (last?.role === "assistant") copy[copy.length - 1] = { ...last, content: last.content + chunk };
+          if (last?.role === "assistant") {
+            copy[copy.length - 1] = { ...last, content: last.content + chunk };
+          }
           return copy;
         });
       }
 
-      if (image) setPendingImage(null);
+      setPendingAttachment(null);
       await loadChats();
       await loadMessages(chatId);
     } catch (error) {
@@ -192,10 +278,14 @@ export default function ChatApp() {
       setMessages((current) => {
         const copy = [...current];
         const last = copy[copy.length - 1];
-        if (last?.role === "assistant") copy[copy.length - 1] = { ...last, content: `Error: ${textError}` };
+        if (last?.role === "assistant") {
+          copy[copy.length - 1] = { ...last, content: `Error: ${textError}` };
+        }
         return copy;
       });
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }
 
   function startVoiceInput() {
@@ -205,10 +295,12 @@ export default function ChatApp() {
       webkitSpeechRecognition?: SpeechRecognitionCtor;
     };
     const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+
     if (!Recognition) {
       setNotice("Voice input is not supported in this browser yet.");
       return;
     }
+
     if (listening && speechRecognitionRef.current) {
       speechRecognitionRef.current.stop();
       return;
@@ -219,6 +311,7 @@ export default function ChatApp() {
     recognition.interimResults = true;
     recognition.continuous = false;
     const base = input.trim();
+
     recognition.onresult = (event) => {
       let transcript = "";
       for (let i = 0; i < event.results.length; i += 1) {
@@ -226,12 +319,16 @@ export default function ChatApp() {
       }
       setInput([base, transcript.trim()].filter(Boolean).join(base ? " " : ""));
     };
-    recognition.onend = () => { setListening(false); speechRecognitionRef.current = null; };
+    recognition.onend = () => {
+      setListening(false);
+      speechRecognitionRef.current = null;
+    };
     recognition.onerror = () => {
       setListening(false);
       speechRecognitionRef.current = null;
       setNotice("Voice input stopped. Check microphone permission and try again.");
     };
+
     speechRecognitionRef.current = recognition;
     setListening(true);
     setNotice("");
@@ -249,33 +346,6 @@ export default function ChatApp() {
     window.speechSynthesis.speak(utterance);
   }
 
-  async function uploadFile(file: File) {
-    setUploading(true); setNotice("");
-    try {
-      const form = new FormData(); form.append("file", file);
-      const response = await fetch("/api/documents", { method: "POST", body: form });
-      const raw = await response.text();
-      let data: { error?: string } = {};
-      if (raw) {
-        try {
-          data = JSON.parse(raw) as { error?: string };
-        } catch {
-          if (!response.ok) throw new Error(raw.slice(0, 500) || `Upload failed (${response.status})`);
-        }
-      }
-      if (!response.ok) throw new Error(data.error ?? `Upload failed (${response.status})`);
-      setNotice(`${file.name} added to TENSORRA knowledge.`);
-      await loadDocuments();
-      setPanel("files");
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Upload failed"); }
-    finally { setUploading(false); if (fileInput.current) fileInput.current.value = ""; }
-  }
-
-  async function deleteDocument(id: string) {
-    const response = await fetch(`/api/documents?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (response.ok) await loadDocuments();
-  }
-
   async function deleteMemory(id: string) {
     const { error } = await supabase.from("memories").delete().eq("id", id);
     if (!error) setMemories((current) => current.filter((item) => item.id !== id));
@@ -285,7 +355,10 @@ export default function ChatApp() {
     const next = !allowTraining;
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
-    const { error } = await supabase.from("profiles").update({ allow_training: next }).eq("id", userData.user.id);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ allow_training: next })
+      .eq("id", userData.user.id);
     if (!error) setAllowTraining(next);
   }
 
@@ -301,43 +374,71 @@ export default function ChatApp() {
       model_name: message.model_name ?? null,
       eligible_for_training: allowTraining,
     }, { onConflict: "user_id,message_id" });
+
     if (!error) setFeedback((current) => ({ ...current, [message.id!]: rating }));
   }
 
   async function signOut() {
     await supabase.auth.signOut();
-    router.replace("/login"); router.refresh();
+    router.replace("/login");
+    router.refresh();
   }
 
-  function openMemory() { setPanel("memory"); void loadMemories(); setSidebarOpen(false); }
-  function openFiles() { setPanel("files"); void loadDocuments(); setSidebarOpen(false); }
+  function openMemory() {
+    setPanel("memory");
+    void loadMemories();
+    setSidebarOpen(false);
+  }
 
   return (
     <main className="appShell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brandRow">
           <div className="tensorMark">T</div>
-          <div className="brandText"><strong>TENSORRA</strong><span>v0.6 · research + vision</span></div>
+          <div className="brandText"><strong>TENSORRA</strong><span>v0.7 · autonomous context</span></div>
           <button className="iconButton mobileOnly" onClick={() => setSidebarOpen(false)} aria-label="Close sidebar">×</button>
         </div>
 
-        <button className="newChatButton" onClick={() => { setActiveChatId(null); setMessages([]); setSidebarOpen(false); }}><span>＋</span> New chat</button>
+        <button
+          className="newChatButton"
+          onClick={() => {
+            setActiveChatId(null);
+            setMessages([]);
+            setPendingAttachment(null);
+            setSidebarOpen(false);
+          }}
+        >
+          <span>＋</span> New chat
+        </button>
+
         <div className="sideActions">
-          <button onClick={openMemory}>◈ Memory <span>{memories.length || ""}</span></button>
-          <button onClick={openFiles}>▣ Knowledge <span>{documents.filter((d) => d.status === "ready").length || ""}</span></button>
+          <button onClick={openMemory}>◈ Memory</button>
         </div>
 
         <div className="chatList">
           {chats.map((chat) => (
-            <button key={chat.id} className={`chatItem ${activeChatId === chat.id ? "active" : ""}`} onClick={() => { setActiveChatId(chat.id); setSidebarOpen(false); }}>
+            <button
+              key={chat.id}
+              className={`chatItem ${activeChatId === chat.id ? "active" : ""}`}
+              onClick={() => {
+                setActiveChatId(chat.id);
+                setPendingAttachment(null);
+                setSidebarOpen(false);
+              }}
+            >
               <span>{chat.title}</span>
             </button>
           ))}
         </div>
 
         <div className="sidebarFooter">
-          <div className="memoryHint"><span className="dot" /> Memory + private RAG active</div>
-          <button className={`trainingToggle ${allowTraining ? "active" : ""}`} onClick={() => void toggleTraining()}><span>{allowTraining ? "✓" : "○"}</span> Use my rated chats to improve TENSORRA</button>
+          <div className="memoryHint"><span className="dot" /> Auto memory · files · web · code</div>
+          <button
+            className={`trainingToggle ${allowTraining ? "active" : ""}`}
+            onClick={() => void toggleTraining()}
+          >
+            <span>{allowTraining ? "✓" : "○"}</span> Use my rated chats to improve TENSORRA
+          </button>
           <InstallAppButton compact />
           <button className="ghostButton" onClick={signOut}>Sign out</button>
         </div>
@@ -348,9 +449,20 @@ export default function ChatApp() {
       <section className="workspace">
         <header className="topbar">
           <button className="iconButton mobileOnly" onClick={() => setSidebarOpen(true)} aria-label="Open sidebar">☰</button>
-          <div><strong>TENSORRA</strong><span className="statusText">reasoning · memory · tools</span></div>
+          <div><strong>TENSORRA</strong><span className="statusText">auto context · reasoning · memory</span></div>
           <div className="modeSwitcher" aria-label="Thinking mode">
-            {MODES.map((mode) => <button key={mode.id} type="button" className={`modeButton ${thinkingMode === mode.id ? "active" : ""}`} title={mode.hint} onClick={() => void changeThinkingMode(mode.id)} disabled={loading}>{mode.label}</button>)}
+            {MODES.map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                className={`modeButton ${thinkingMode === mode.id ? "active" : ""}`}
+                title={mode.hint}
+                onClick={() => void changeThinkingMode(mode.id)}
+                disabled={loading}
+              >
+                {mode.label}
+              </button>
+            ))}
           </div>
         </header>
 
@@ -359,12 +471,15 @@ export default function ChatApp() {
             <section className="hero">
               <div className="heroMark">T</div>
               <p className="eyebrow">TENSORRA CORE</p>
-              <h1>One AI. The depth you need.</h1>
-              <p className="heroSub">Reasoning, web search, Python execution, private documents and long-term memory in one workspace.</p>
+              <h1>Just ask. TENSORRA chooses the tools.</h1>
+              <p className="heroSub">
+                Attach a PDF or image, ask about current information, calculations or past context.
+                TENSORRA decides when to use files, memory, web, code or vision.
+              </p>
               <div className="suggestions">
-                <button onClick={() => setInput("Research the latest developments in AI and explain what actually matters.")}>Research something current</button>
+                <button onClick={() => setInput("What are the most important AI developments right now?")}>Ask something current</button>
                 <button onClick={() => setInput("Analyze this problem deeply, challenge my assumptions and give me a plan.")}>Think through a hard problem</button>
-                <button onClick={() => fileInput.current?.click()}>Add a PDF to knowledge</button>
+                <button onClick={() => attachInput.current?.click()}>Attach a PDF or image</button>
               </div>
             </section>
           ) : (
@@ -374,7 +489,21 @@ export default function ChatApp() {
                   <div className="messageAvatar">{message.role === "assistant" ? "T" : "You"}</div>
                   <div>
                     <div className="messageLabel">{message.role === "assistant" ? "TENSORRA" : "YOU"}</div>
-                    <div className={`messageContent ${message.role === "assistant" && loading && index === messages.length - 1 && !message.content ? "thinking" : ""}`}>{message.content || (message.role === "assistant" ? "Thinking" : "")}</div>
+
+                    {message.metadata?.attachments?.length ? (
+                      <div className="messageAttachments">
+                        {message.metadata.attachments.map((attachment, attachmentIndex) => (
+                          <span key={`${attachment.filename}-${attachmentIndex}`}>
+                            {attachment.kind === "image" ? "▧" : "▣"} {attachment.filename}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <div className={`messageContent ${message.role === "assistant" && loading && index === messages.length - 1 && !message.content ? "thinking" : ""}`}>
+                      {message.content || (message.role === "assistant" ? "Thinking" : "")}
+                    </div>
+
                     {message.role === "assistant" && message.metadata?.sources?.length ? (
                       <div className="sourceList">
                         {message.metadata.sources.slice(0, 8).map((source, sourceIndex) => (
@@ -385,11 +514,14 @@ export default function ChatApp() {
                         ))}
                       </div>
                     ) : null}
-                    {message.role === "assistant" && message.id ? <div className="feedbackRow">
-                      <button className={feedback[message.id] === 1 ? "active" : ""} onClick={() => void rateMessage(message, 1)}>↑ Good</button>
-                      <button className={feedback[message.id] === -1 ? "active" : ""} onClick={() => void rateMessage(message, -1)}>↓ Bad</button>
-                      <button onClick={() => speakAnswer(message.content)}>◌ Listen</button>
-                    </div> : null}
+
+                    {message.role === "assistant" && message.id ? (
+                      <div className="feedbackRow">
+                        <button className={feedback[message.id] === 1 ? "active" : ""} onClick={() => void rateMessage(message, 1)}>↑ Good</button>
+                        <button className={feedback[message.id] === -1 ? "active" : ""} onClick={() => void rateMessage(message, -1)}>↓ Bad</button>
+                        <button onClick={() => speakAnswer(message.content)}>◌ Listen</button>
+                      </div>
+                    ) : null}
                   </div>
                 </article>
               ))}
@@ -400,56 +532,80 @@ export default function ChatApp() {
 
         <div className="composerWrap">
           {notice ? <div className="composerNotice">{notice}</div> : null}
-          {pendingImage ? (
+
+          {pendingAttachment ? (
             <div className="imageChip">
-              <span>◫ {pendingImage.name}</span>
-              <button type="button" onClick={() => setPendingImage(null)} aria-label="Remove image">×</button>
+              <span>{isImageFile(pendingAttachment) ? "▧" : "▣"} {pendingAttachment.name}</span>
+              <button type="button" onClick={() => setPendingAttachment(null)} aria-label="Remove attachment">×</button>
             </div>
           ) : null}
+
           <div className="toolStrip">
-            <button className={researchMode ? "active" : ""} onClick={() => setResearchMode((v) => !v)}>◉ Research</button>
-            <button className={webTool || researchMode ? "active" : ""} onClick={() => setWebTool((v) => !v)} disabled={researchMode}>◎ Web</button>
-            <button className={codeTool ? "active" : ""} onClick={() => setCodeTool((v) => !v)}>⌘ Code</button>
-            <button className={listening ? "active" : ""} onClick={startVoiceInput}>{listening ? "■ Stop" : "◌ Voice"}</button>
-            <button className={pendingImage ? "active" : ""} onClick={() => imageInput.current?.click()}>▧ Image</button>
-            <button onClick={() => fileInput.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "+ File"}</button>
+            <button type="button" onClick={() => attachInput.current?.click()} disabled={loading}>
+              ＋ Attach
+            </button>
+            <button className={listening ? "active" : ""} type="button" onClick={startVoiceInput}>
+              {listening ? "■ Stop" : "◌ Voice"}
+            </button>
             <input
-              ref={imageInput}
+              ref={attachInput}
               hidden
               type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                if (file.size > 8 * 1024 * 1024) {
-                  setNotice("Image must be 8 MB or smaller.");
-                  e.currentTarget.value = "";
-                  return;
-                }
-                setPendingImage(file);
-                setNotice("");
-                e.currentTarget.value = "";
+              accept="application/pdf,text/plain,text/markdown,application/json,.md,.txt,.json,image/jpeg,image/png,image/webp"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) selectAttachment(file);
+                event.currentTarget.value = "";
               }}
             />
-            <input ref={fileInput} hidden type="file" accept="application/pdf,text/plain,text/markdown,application/json,.md" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadFile(file); }} />
           </div>
+
           <form className="composer" onSubmit={send}>
-            <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder="Ask TENSORRA anything…" rows={1} />
-            <button className="sendButton" type="submit" disabled={(!input.trim() && !pendingImage) || loading}>↑</button>
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+              placeholder={pendingAttachment ? "Ask about this attachment…" : "Ask TENSORRA anything…"}
+              rows={1}
+            />
+            <button className="sendButton" type="submit" disabled={(!input.trim() && !pendingAttachment) || loading}>↑</button>
           </form>
-          <div className="composerNote">Auto chooses reasoning depth. Research adds web verification. Vision uses Qwen 3.8 for image understanding.</div>
+
+          <div className="composerNote">
+            TENSORRA automatically chooses memory, private files, web search, code execution and vision when needed.
+          </div>
         </div>
       </section>
 
-      {panel !== "none" ? <div className="rightPanel">
-        <div className="panelHead"><div><p className="eyebrow">TENSORRA</p><h2>{panel === "memory" ? "Memory" : "Knowledge"}</h2></div><button className="iconButton" onClick={() => setPanel("none")}>×</button></div>
-        {panel === "memory" ? <div className="panelList">
-          {memories.length ? memories.map((memory) => <div className="panelItem" key={memory.id}><div><strong>{memory.category}</strong><p>{memory.content}</p><span>importance {memory.importance}/10</span></div><button onClick={() => void deleteMemory(memory.id)}>Delete</button></div>) : <p className="panelEmpty">No durable memories yet. TENSORRA will save useful long-term context automatically.</p>}
-        </div> : <div className="panelList">
-          <button className="panelUpload" onClick={() => fileInput.current?.click()}>＋ Add PDF / text file</button>
-          {documents.length ? documents.map((doc) => <div className="panelItem" key={doc.id}><div><strong>{doc.filename}</strong><p>{doc.status}</p><span>{doc.size_bytes ? `${Math.round(doc.size_bytes / 1024)} KB` : ""}</span></div><button onClick={() => void deleteDocument(doc.id)}>Delete</button></div>) : <p className="panelEmpty">Upload documents and TENSORRA will retrieve relevant passages while answering.</p>}
-        </div>}
-      </div> : null}
+      {panel === "memory" ? (
+        <div className="rightPanel">
+          <div className="panelHead">
+            <div><p className="eyebrow">TENSORRA</p><h2>Memory</h2></div>
+            <button className="iconButton" onClick={() => setPanel("none")}>×</button>
+          </div>
+          <div className="panelList">
+            {memories.length ? memories.map((memory) => (
+              <div className="panelItem" key={memory.id}>
+                <div>
+                  <strong>{memory.category}</strong>
+                  <p>{memory.content}</p>
+                  <span>importance {memory.importance}/10</span>
+                </div>
+                <button onClick={() => void deleteMemory(memory.id)}>Delete</button>
+              </div>
+            )) : (
+              <p className="panelEmpty">
+                No durable memories yet. TENSORRA saves useful long-term context automatically.
+              </p>
+            )}
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
