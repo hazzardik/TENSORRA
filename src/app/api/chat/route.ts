@@ -354,7 +354,7 @@ async function providerFetch(args: {
   return { response, modelUsed, fellBack: true };
 }
 
-function providerError(response: Response) {
+async function providerError(response: Response) {
   if (response.status === 429) {
     return new Response(
       "Сейчас достигнут лимит запросов к модели. TENSORRA уже попробовала резервный режим. Подожди 20–60 секунд и отправь запрос ещё раз.",
@@ -362,12 +362,15 @@ function providerError(response: Response) {
     );
   }
 
-  return response.text()
-    .catch(() => "")
-    .then((detail) => new Response(
-      detail || "Не удалось получить ответ от модели.",
-      { status: response.status || 502 },
-    ));
+  const detail = await response.text().catch(() => "");
+  if (detail) {
+    console.warn("TENSORRA provider error", response.status, detail.slice(0, 1200));
+  }
+
+  return new Response(
+    `Не удалось получить ответ от модели. Код ошибки: ${response.status || 502}.`,
+    { status: response.status || 502 },
+  );
 }
 
 async function extractDurableMemories(
