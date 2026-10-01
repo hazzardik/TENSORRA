@@ -5,7 +5,7 @@ export function buildSystemPrompt(
   memories: MemoryItem[],
   knowledge: KnowledgeItem[],
   verificationBrief?: string,
-  options?: { research?: boolean },
+  options?: { research?: boolean; autonomousTools?: boolean },
 ) {
   const memoryBlock = memories.length
     ? memories.map((memory, index) => `${index + 1}. ${memory.content}`).join("\n")
@@ -15,8 +15,15 @@ export function buildSystemPrompt(
     ? knowledge.map((item, index) => `${index + 1}. [${item.filename ?? "document"}] ${item.content}`).join("\n\n")
     : "No relevant private-document context.";
 
-  const researchBlock = options?.research
-    ? `\n\nResearch mode is active:\n- Use browser search when current or externally verifiable facts matter.\n- Cross-check important claims across multiple reliable sources when possible.\n- Prefer primary sources and clearly distinguish sourced facts from inference.\n- Surface material uncertainty or source disagreement.\n- Produce a synthesized answer rather than a list of search snippets.`
+  const autonomousBlock = options?.autonomousTools !== false
+    ? `\n\nAutonomous context and tool policy:
+- Decide silently whether long-term memory, private documents, browser search, or code execution is actually useful.
+- Prefer attached/private documents and relevant memory when they answer the request.
+- Use browser search for current, time-sensitive, externally verifiable, location-dependent, niche, or explicitly web-related facts.
+- Do not browse for ordinary writing, timeless knowledge, or questions fully answered by supplied context.
+- Use code execution for calculations, data processing, or verification when it materially improves correctness.
+- If browser search is used, prefer reliable or primary sources and surface citations.
+- Never ask the user to choose a tool just because multiple tools are available.`
     : "";
 
   const verificationBlock = verificationBrief
@@ -42,7 +49,7 @@ Relevant long-term memory:
 ${memoryBlock}
 
 Relevant private-document context:
-${knowledgeBlock}${researchBlock}${verificationBlock}`;
+${knowledgeBlock}${autonomousBlock}${verificationBlock}`;
 }
 
 export function buildVerificationPrompt(userMessage: string, recentContext: string) {
