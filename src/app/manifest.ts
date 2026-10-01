@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "TENSORRA AI",
+    name: "TENSORRA ИИ",
     short_name: "TENSORRA",
     description: "ИИ с памятью, анализом файлов и автоматическим выбором инструментов.",
     start_url: "/app",
