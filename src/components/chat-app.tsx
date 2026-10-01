@@ -7,7 +7,15 @@ import type { ThinkingMode } from "@/lib/tensorra/model-router";
 import InstallAppButton from "./install-app-button";
 
 type Chat = { id: string; title: string; mode: ThinkingMode; created_at: string; updated_at: string };
-type Message = { id?: string; role: "user" | "assistant"; content: string; model_name?: string | null; created_at?: string };
+type ResearchSource = { title: string; url: string; score?: number };
+type Message = {
+  id?: string;
+  role: "user" | "assistant";
+  content: string;
+  model_name?: string | null;
+  created_at?: string;
+  metadata?: { sources?: ResearchSource[] } | null;
+};
 type Memory = { id: string; content: string; category: string; importance: number; created_at: string };
 type Document = { id: string; filename: string; status: string; size_bytes: number | null; created_at: string };
 type SpeechRecognitionResultLike = { isFinal: boolean; 0?: { transcript?: string } };
@@ -63,7 +71,7 @@ export default function ChatApp() {
   }, [supabase]);
 
   const loadMessages = useCallback(async (chatId: string) => {
-    const { data, error } = await supabase.from("messages").select("id,role,content,model_name,created_at").eq("chat_id", chatId).in("role", ["user", "assistant"]).order("created_at", { ascending: true });
+    const { data, error } = await supabase.from("messages").select("id,role,content,model_name,created_at,metadata").eq("chat_id", chatId).in("role", ["user", "assistant"]).order("created_at", { ascending: true });
     if (!error) setMessages((data ?? []) as Message[]);
   }, [supabase]);
 
@@ -337,6 +345,16 @@ export default function ChatApp() {
                   <div>
                     <div className="messageLabel">{message.role === "assistant" ? "TENSORRA" : "YOU"}</div>
                     <div className={`messageContent ${message.role === "assistant" && loading && index === messages.length - 1 && !message.content ? "thinking" : ""}`}>{message.content || (message.role === "assistant" ? "Thinking" : "")}</div>
+                    {message.role === "assistant" && message.metadata?.sources?.length ? (
+                      <div className="sourceList">
+                        {message.metadata.sources.slice(0, 8).map((source, sourceIndex) => (
+                          <a key={source.url} href={source.url} target="_blank" rel="noreferrer" title={source.url}>
+                            <span>{sourceIndex + 1}</span>
+                            <strong>{source.title}</strong>
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
                     {message.role === "assistant" && message.id ? <div className="feedbackRow">
                       <button className={feedback[message.id] === 1 ? "active" : ""} onClick={() => void rateMessage(message, 1)}>↑ Good</button>
                       <button className={feedback[message.id] === -1 ? "active" : ""} onClick={() => void rateMessage(message, -1)}>↓ Bad</button>

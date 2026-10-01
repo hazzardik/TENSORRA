@@ -187,3 +187,9 @@ a { color: inherit; text-decoration: none; }
   .landingFooter { width:calc(100% - 28px); gap:12px; flex-direction:column; }
   .rightPanel { width:100%; }
 }
+
+.sourceList { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
+.sourceList a { max-width:min(300px,100%); display:flex; align-items:center; gap:8px; border:1px solid var(--line); background:rgba(255,255,255,.025); border-radius:10px; padding:7px 9px; color:#8f9caf; font-size:10px; }
+.sourceList a:hover { border-color:rgba(126,231,255,.22); color:#d8f6ff; background:rgba(126,231,255,.045); }
+.sourceList a span { width:18px; height:18px; flex:0 0 18px; display:grid; place-items:center; border-radius:6px; background:#141b25; color:#7ee7ff; font-size:9px; }
+.sourceList a strong { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-weight:600; }

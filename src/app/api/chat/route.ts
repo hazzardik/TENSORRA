@@ -24,6 +24,16 @@ type ToolExecution = {
   name?: string;
   arguments?: unknown;
   result?: unknown;
+  search_results?: {
+    results?: Array<{ title?: string; url?: string; score?: number; content?: string }>;
+  };
+  code_results?: Array<{ text?: string }>;
+};
+
+type ResearchSource = {
+  title: string;
+  url: string;
+  score?: number;
 };
 
 async function loadRelevantMemories(
@@ -135,6 +145,7 @@ async function saveAssistantMessage(args: {
   reasoningEffort: string;
   verified: boolean;
   toolsEnabled: string[];
+  sources?: ResearchSource[];
 }) {
   await args.supabase.from("messages").insert({
     chat_id: args.chatId,
@@ -148,6 +159,7 @@ async function saveAssistantMessage(args: {
       reasoning_effort: args.reasoningEffort,
       verified: args.verified,
       tools_enabled: args.toolsEnabled,
+      sources: args.sources ?? [],
     },
   });
   await args.supabase
@@ -287,13 +299,29 @@ export async function POST(request: Request) {
     const answer = data?.choices?.[0]?.message?.content?.trim() ?? "";
     if (!answer) return new Response("TENSORRA returned an empty response", { status: 502 });
 
+    const executedTools = data?.choices?.[0]?.message?.executed_tools ?? [];
+    const sourceMap = new Map<string, ResearchSource>();
+    for (const tool of executedTools) {
+      for (const result of tool.search_results?.results ?? []) {
+        if (typeof result.url !== "string" || !/^https?:\/\//i.test(result.url)) continue;
+        const url = result.url.slice(0, 2000);
+        if (sourceMap.has(url)) continue;
+        sourceMap.set(url, {
+          title: (typeof result.title === "string" && result.title.trim() ? result.title.trim() : url).slice(0, 240),
+          url,
+          score: typeof result.score === "number" ? result.score : undefined,
+        });
+        if (sourceMap.size >= 10) break;
+      }
+      if (sourceMap.size >= 10) break;
+    }
+    const sources = [...sourceMap.values()];
+
     await saveAssistantMessage({
       supabase, userId, chatId, content: answer, modelName: modelConfig.model,
       requestedMode, effectiveMode, reasoningEffort: modelConfig.reasoningEffort,
-      verified: modelConfig.verify, toolsEnabled: toolNames,
+      verified: modelConfig.verify, toolsEnabled: toolNames, sources,
     });
-
-    const executedTools = data?.choices?.[0]?.message?.executed_tools ?? [];
     for (const tool of executedTools.slice(0, 12)) {
       await supabase.from("tool_runs").insert({
         user_id: userId,
@@ -301,7 +329,11 @@ export async function POST(request: Request) {
         tool_name: tool.type ?? tool.name ?? "unknown",
         status: "ok",
         input: (tool.arguments && typeof tool.arguments === "object") ? tool.arguments : {},
-        output_summary: tool.result ? JSON.stringify(tool.result).slice(0, 2500) : null,
+        output_summary: JSON.stringify({
+          result: tool.result ?? null,
+          search_results: tool.search_results ?? null,
+          code_results: tool.code_results ?? null,
+        }).slice(0, 2500),
         duration_ms: Date.now() - startedAt,
       });
     }
