@@ -9,7 +9,7 @@ import {
 import { buildMemoryExtractionPrompt, buildSystemPrompt, buildVerificationPrompt } from "@/lib/tensorra/prompt";
 import { createVerificationBrief, extractMemoriesWithModel, providerConfig } from "@/lib/tensorra/provider";
 import { searchKnowledge, searchSemanticMemories, upsertSemanticMemory } from "@/lib/tensorra/qdrant";
-import { normalizeToolPreferences, providerTools } from "@/lib/tensorra/tools";
+import { providerTools } from "@/lib/tensorra/tools";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -190,14 +190,13 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as {
     chatId?: string;
     message?: string;
-    tools?: unknown;
-    research?: boolean;
+    documentIds?: string[];
   } | null;
   const chatId = body?.chatId?.trim();
   const message = body?.message?.trim();
-  const researchMode = body?.research === true;
-  const normalizedTools = normalizeToolPreferences(body?.tools);
-  const toolPreferences = researchMode ? { ...normalizedTools, web: true } : normalizedTools;
+  const attachedDocumentIds = [...new Set(
+    (body?.documentIds ?? []).filter((id) => typeof id === "string" && id.length > 0),
+  )].slice(0, 6);
 
   if (!chatId || !message) return new Response("chatId and message are required", { status: 400 });
   if (message.length > 30000) return new Response("Message is too long", { status: 413 });
@@ -211,18 +210,32 @@ export async function POST(request: Request) {
   if (chatError || !chat) return new Response("Chat not found", { status: 404 });
 
   const requestedMode = normalizeThinkingMode(chat.mode);
-  const effectiveMode: ConcreteThinkingMode = researchMode
-    ? "max"
-    : requestedMode === "auto"
-      ? resolveAutoThinkingMode(message)
-      : requestedMode;
+  const effectiveMode: ConcreteThinkingMode = requestedMode === "auto"
+    ? resolveAutoThinkingMode(message)
+    : requestedMode;
   const modelConfig = THINKING_MODES[effectiveMode];
+
+  const { data: attachedDocs } = attachedDocumentIds.length
+    ? await supabase.from("documents")
+        .select("id,filename")
+        .eq("user_id", userId)
+        .in("id", attachedDocumentIds)
+    : { data: [] as Array<{ id: string; filename: string }> };
+
+  const verifiedDocumentIds = (attachedDocs ?? []).map((doc: { id: string }) => doc.id);
 
   const { error: insertError } = await supabase.from("messages").insert({
     chat_id: chatId,
     user_id: userId,
     role: "user",
     content: message,
+    metadata: {
+      attachments: (attachedDocs ?? []).map((doc: { id: string; filename: string }) => ({
+        kind: "document",
+        document_id: doc.id,
+        filename: doc.filename,
+      })),
+    },
   });
   if (insertError) return new Response("Could not save message", { status: 500 });
 
@@ -236,7 +249,16 @@ export async function POST(request: Request) {
     await saveMemory(supabase, userId, chatId, { content: explicitMemory, category: "explicit", importance: 9 });
   }
 
-  const [{ data: history }, relevantMemories, relevantKnowledge] = await Promise.all([
+  const attachedKnowledgePromise = verifiedDocumentIds.length
+    ? supabase.from("document_chunks")
+        .select("document_id,content,chunk_index")
+        .eq("user_id", userId)
+        .in("document_id", verifiedDocumentIds)
+        .order("chunk_index", { ascending: true })
+        .limit(48)
+    : Promise.resolve({ data: [] as Array<{ document_id: string; content: string; chunk_index: number }> });
+
+  const [{ data: history }, relevantMemories, relevantKnowledge, { data: attachedChunks }] = await Promise.all([
     supabase.from("messages")
       .select("role,content")
       .eq("chat_id", chatId)
@@ -246,7 +268,22 @@ export async function POST(request: Request) {
       .limit(50),
     loadRelevantMemories(supabase, userId, message),
     loadRelevantKnowledge(supabase, userId, message),
+    attachedKnowledgePromise,
   ]);
+
+  const attachedNames = new Map(
+    (attachedDocs ?? []).map((doc: { id: string; filename: string }) => [doc.id, doc.filename]),
+  );
+  const attachedKnowledge: KnowledgeItem[] = (attachedChunks ?? []).map(
+    (chunk: { document_id: string; content: string }) => ({
+      content: chunk.content,
+      filename: attachedNames.get(chunk.document_id) ?? "attached document",
+      score: 1,
+    }),
+  );
+  const mergedKnowledge = [...attachedKnowledge, ...relevantKnowledge]
+    .filter((item, index, all) => all.findIndex((candidate) => candidate.content === item.content) === index)
+    .slice(0, 18);
 
   const conversation = (((history ?? []) as StoredMessage[]).reverse()).slice(-50);
   const recentContext = conversation.map((item) => `${item.role}: ${item.content}`).join("\n");
@@ -260,11 +297,11 @@ export async function POST(request: Request) {
     ).catch(() => "");
   }
 
-  const systemPrompt = buildSystemPrompt(relevantMemories, relevantKnowledge, verificationBrief, { research: researchMode });
+  const systemPrompt = buildSystemPrompt(relevantMemories, mergedKnowledge, verificationBrief, { autonomousTools: true });
   const provider = providerConfig();
   if (!provider.apiKey) return new Response("GROQ_API_KEY (or AI_API_KEY) is not configured", { status: 500 });
 
-  const tools = providerTools(toolPreferences);
+  const tools = providerTools();
   const toolNames = tools.map((tool) => tool.type);
   const basePayload = {
     model: modelConfig.model,
@@ -347,7 +384,7 @@ export async function POST(request: Request) {
       input_tokens: data?.usage?.prompt_tokens ?? null,
       output_tokens: data?.usage?.completion_tokens ?? null,
       latency_ms: Date.now() - startedAt,
-      metadata: { requested_mode: requestedMode, effective_mode: effectiveMode, tools: toolNames, research: researchMode },
+      metadata: { requested_mode: requestedMode, effective_mode: effectiveMode, tools: toolNames, autonomous_tools: true },
     });
 
     const autoMemories = await extractMemoriesWithModel(buildMemoryExtractionPrompt(message)).catch(() => []);
@@ -364,7 +401,7 @@ export async function POST(request: Request) {
         "X-Tensorra-Mode": effectiveMode,
         "X-Tensorra-Model": modelConfig.model,
         "X-Tensorra-Tools": toolNames.join(","),
-        "X-Tensorra-Research": researchMode ? "1" : "0",
+        "X-Tensorra-Autonomous-Tools": "1",
       },
     });
   }
@@ -428,7 +465,7 @@ export async function POST(request: Request) {
             provider: "groq",
             model_name: modelConfig.model,
             latency_ms: Date.now() - startedAt,
-            metadata: { requested_mode: requestedMode, effective_mode: effectiveMode, research: researchMode },
+            metadata: { requested_mode: requestedMode, effective_mode: effectiveMode, autonomous_tools: true },
           });
         }
 
@@ -453,7 +490,7 @@ export async function POST(request: Request) {
       "X-Accel-Buffering": "no",
       "X-Tensorra-Mode": effectiveMode,
       "X-Tensorra-Model": modelConfig.model,
-      "X-Tensorra-Research": researchMode ? "1" : "0",
+      "X-Tensorra-Autonomous-Tools": "1",
     },
   });
 }
