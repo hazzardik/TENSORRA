@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     mime_type: file.type || "application/octet-stream",
     storage_path: storagePath,
     size_bytes: file.size,
+    source_chat_id: chatId,
     status: "processing",
   }).select("id,filename,status,created_at").single();
   if (docError || !document) return Response.json({ error: "Не удалось создать запись документа." }, { status: 500 });
@@ -123,7 +124,7 @@ export async function DELETE(request: Request) {
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return Response.json({ error: "Требуется вход в аккаунт." }, { status: 401 });
 
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return Response.json({ error: "Не указан идентификатор документа." }, { status: 400 });
