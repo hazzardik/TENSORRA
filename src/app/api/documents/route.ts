@@ -12,12 +12,12 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return Response.json({ error: "Требуется вход в аккаунт." }, { status: 401 });
 
   const form = await request.formData();
   const file = form.get("file");
   const chatId = String(form.get("chatId") ?? "").trim() || null;
-  if (!(file instanceof File)) return Response.json({ error: "File is required" }, { status: 400 });
+  if (!(file instanceof File)) return Response.json({ error: "Файл не найден в запросе." }, { status: 400 });
 
   if (chatId) {
     const { data: chat } = await supabase
@@ -26,11 +26,11 @@ export async function POST(request: Request) {
       .eq("id", chatId)
       .eq("user_id", userId)
       .maybeSingle();
-    if (!chat) return Response.json({ error: "Chat not found" }, { status: 404 });
+    if (!chat) return Response.json({ error: "Чат не найден." }, { status: 404 });
   }
-  if (file.size <= 0 || file.size > MAX_FILE_SIZE) return Response.json({ error: "File must be 15 MB or smaller" }, { status: 413 });
+  if (file.size <= 0 || file.size > MAX_FILE_SIZE) return Response.json({ error: "Размер файла не должен превышать 15 МБ." }, { status: 413 });
   if (!ACCEPTED.has(file.type) && !file.name.toLocaleLowerCase().endsWith(".md")) {
-    return Response.json({ error: "Supported: PDF, TXT, Markdown, JSON" }, { status: 415 });
+    return Response.json({ error: "Поддерживаются PDF, TXT, Markdown и JSON." }, { status: 415 });
   }
 
   const filename = safeFilename(file.name);
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     size_bytes: file.size,
     status: "processing",
   }).select("id,filename,status,created_at").single();
-  if (docError || !document) return Response.json({ error: "Could not create document record" }, { status: 500 });
+  if (docError || !document) return Response.json({ error: "Не удалось создать запись документа." }, { status: 500 });
 
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -55,9 +55,9 @@ export async function POST(request: Request) {
     if (uploadError) throw uploadError;
 
     const text = await extractDocumentText(file);
-    if (text.length < 20) throw new Error("No readable text found in this document");
+    if (text.length < 20) throw new Error("В документе не удалось найти читаемый текст.");
     const chunks = chunkText(text);
-    if (!chunks.length) throw new Error("Document produced no searchable chunks");
+    if (!chunks.length) throw new Error("Не удалось подготовить документ для поиска.");
 
     const rows = chunks.map((content, chunkIndex) => ({
       id: crypto.randomUUID(),
@@ -113,9 +113,9 @@ export async function POST(request: Request) {
   } catch (error) {
     await supabase.from("documents").update({
       status: "failed",
-      metadata: { error: error instanceof Error ? error.message.slice(0, 500) : "Processing failed" },
+      metadata: { error: error instanceof Error ? error.message.slice(0, 500) : "Ошибка обработки документа" },
     }).eq("id", document.id).eq("user_id", userId);
-    return Response.json({ error: error instanceof Error ? error.message : "Document processing failed" }, { status: 500 });
+    return Response.json({ error: error instanceof Error ? error.message : "Не удалось обработать документ" }, { status: 500 });
   }
 }
 
@@ -126,10 +126,10 @@ export async function DELETE(request: Request) {
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const id = new URL(request.url).searchParams.get("id");
-  if (!id) return Response.json({ error: "id is required" }, { status: 400 });
+  if (!id) return Response.json({ error: "Не указан идентификатор документа." }, { status: 400 });
 
   const { data: doc } = await supabase.from("documents").select("id,storage_path").eq("id", id).eq("user_id", userId).maybeSingle();
-  if (!doc) return Response.json({ error: "Document not found" }, { status: 404 });
+  if (!doc) return Response.json({ error: "Документ не найден." }, { status: 404 });
 
   if (doc.storage_path) await supabase.storage.from("tensorra-files").remove([doc.storage_path]);
   await deleteKnowledgeDocument(userId, id).catch(() => false);
