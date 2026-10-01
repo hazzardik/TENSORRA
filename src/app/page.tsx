@@ -83,7 +83,7 @@ export default function LandingPage() {
 
       <section className="architectureBand">
         <div>
-          <p className="eyebrow">TENSORRA CORE</p>
+          <p className="eyebrow">ЯДРО TENSORRA</p>
           <h2>Один интерфейс. Умный роутер выбирает нужные возможности.</h2>
         </div>
 
