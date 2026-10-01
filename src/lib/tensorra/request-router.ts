@@ -71,8 +71,8 @@ export function planRequest(args: {
     reason.push("attached-document");
   }
 
-  const useWeb = !args.hasAttachedDocument && (explicitWeb || currentness);
-  const useCode = codeSignals && !args.hasAttachedDocument;
+  const useWeb = explicitWeb || currentness;
+  const useCode = codeSignals;
   const useMemory = memorySignals;
   const useKnowledge = args.hasAttachedDocument || knowledgeSignals;
   const extractMemory = durableMemorySignals;
