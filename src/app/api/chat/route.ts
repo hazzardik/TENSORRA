@@ -80,13 +80,19 @@ async function loadRelevantMemories(
 async function loadRelevantKnowledge(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
+  chatId: string,
   query: string,
 ): Promise<KnowledgeItem[]> {
   const semantic = await searchKnowledge(userId, query, 6).catch(() => []);
   if (semantic.length) {
     const ids = [...new Set(semantic.map((item) => item.documentId).filter(Boolean))];
     const { data: existing } = ids.length
-      ? await supabase.from("documents").select("id").eq("user_id", userId).in("id", ids)
+      ? await supabase
+          .from("documents")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("source_chat_id", chatId)
+          .in("id", ids)
       : { data: [] as Array<{ id: string }> };
     const allowed = new Set((existing ?? []).map((item: { id: string }) => item.id));
     const verified = semantic.filter((item) => item.documentId && allowed.has(item.documentId));
@@ -100,14 +106,24 @@ async function loadRelevantKnowledge(
 
   if (!data?.length) return [];
   const documentIds = [...new Set(data.map((item: { document_id: string }) => item.document_id))];
-  const { data: docs } = await supabase.from("documents").select("id,filename").in("id", documentIds);
-  const names = new Map((docs ?? []).map((doc: { id: string; filename: string }) => [doc.id, doc.filename]));
+  const { data: docs } = await supabase
+    .from("documents")
+    .select("id,filename")
+    .eq("user_id", userId)
+    .eq("source_chat_id", chatId)
+    .in("id", documentIds);
 
-  return data.map((item: { content: string; document_id: string; rank?: number }) => ({
-    content: item.content,
-    filename: names.get(item.document_id) ?? "документ",
-    score: item.rank ?? 0,
-  }));
+  const names = new Map(
+    (docs ?? []).map((doc: { id: string; filename: string }) => [doc.id, doc.filename]),
+  );
+
+  return data
+    .filter((item: { document_id: string }) => names.has(item.document_id))
+    .map((item: { content: string; document_id: string; rank?: number }) => ({
+      content: item.content,
+      filename: names.get(item.document_id) ?? "документ",
+      score: item.rank ?? 0,
+    }));
 }
 
 function queryTerms(message: string) {
@@ -491,7 +507,7 @@ export async function POST(request: Request) {
 
   const knowledgePromise =
     plan.useKnowledge && verifiedDocumentIds.length === 0
-      ? loadRelevantKnowledge(supabase, userId, message)
+      ? loadRelevantKnowledge(supabase, userId, chatId, message)
       : Promise.resolve([] as KnowledgeItem[]);
 
   const attachedKnowledgePromise = verifiedDocumentIds.length
