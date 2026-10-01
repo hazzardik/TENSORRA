@@ -15,6 +15,13 @@ export async function GET() {
       version: "0.5.0",
       status: ready ? "ready" : "configuration_required",
       checks: required,
+      features: {
+        research: true,
+        vision: true,
+        privateRag: true,
+        memory: true,
+        codeExecution: true,
+      },
       timestamp: new Date().toISOString(),
     },
     { status: ready ? 200 : 503, headers: { "Cache-Control": "no-store" } },
