@@ -6,9 +6,18 @@ import { createClient } from "@/lib/supabase/client";
 import type { ThinkingMode } from "@/lib/tensorra/model-router";
 import InstallAppButton from "./install-app-button";
 
-type Chat = { id: string; title: string; mode: ThinkingMode; created_at: string; updated_at: string };
+type Chat = {
+  id: string;
+  title: string;
+  mode: ThinkingMode;
+  pinned_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type ResearchSource = { title: string; url: string; score?: number };
 type ChatAttachment = { kind: "image" | "document"; filename: string; document_id?: string };
+
 type Message = {
   id?: string;
   role: "user" | "assistant";
@@ -22,7 +31,15 @@ type Message = {
     attachments?: ChatAttachment[];
   } | null;
 };
-type Memory = { id: string; content: string; category: string; importance: number; created_at: string };
+
+type Memory = {
+  id: string;
+  content: string;
+  category: string;
+  importance: number;
+  created_at: string;
+};
+
 type SpeechRecognitionResultLike = { isFinal: boolean; 0?: { transcript?: string } };
 type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResultLike> };
 type SpeechRecognitionLike = {
@@ -38,11 +55,11 @@ type SpeechRecognitionLike = {
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
 const MODES: Array<{ id: ThinkingMode; label: string; hint: string }> = [
-  { id: "auto", label: "Auto", hint: "TENSORRA chooses the depth" },
-  { id: "fast", label: "Fast", hint: "20B · low reasoning" },
-  { id: "balanced", label: "Balanced", hint: "20B · medium reasoning" },
-  { id: "deep", label: "Deep", hint: "120B · medium reasoning" },
-  { id: "max", label: "Max", hint: "120B · high + verification" },
+  { id: "auto", label: "Авто", hint: "TENSORRA сама выбирает глубину" },
+  { id: "fast", label: "Быстро", hint: "20B · низкая глубина рассуждения" },
+  { id: "balanced", label: "Баланс", hint: "20B · средняя глубина рассуждения" },
+  { id: "deep", label: "Глубоко", hint: "120B · углублённый анализ" },
+  { id: "max", label: "Максимум", hint: "120B · максимальная глубина и проверка" },
 ];
 
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -54,6 +71,28 @@ function isImageFile(file: File) {
 
 function isDocumentFile(file: File) {
   return DOCUMENT_TYPES.has(file.type) || /\.(pdf|txt|md|json)$/i.test(file.name);
+}
+
+function sortChats(items: Chat[]) {
+  return [...items].sort((a, b) => {
+    if (a.pinned_at && !b.pinned_at) return -1;
+    if (!a.pinned_at && b.pinned_at) return 1;
+    if (a.pinned_at && b.pinned_at) {
+      return new Date(b.pinned_at).getTime() - new Date(a.pinned_at).getTime();
+    }
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+  });
+}
+
+function memoryCategoryLabel(category: string) {
+  const labels: Record<string, string> = {
+    explicit: "Сохранено вручную",
+    fact: "Факт",
+    preference: "Предпочтение",
+    goal: "Цель",
+    constraint: "Ограничение",
+  };
+  return labels[category] ?? category;
 }
 
 export default function ChatApp() {
@@ -73,6 +112,7 @@ export default function ChatApp() {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
   const [notice, setNotice] = useState("");
+  const [chatMenuId, setChatMenuId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const attachInput = useRef<HTMLInputElement | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -80,10 +120,12 @@ export default function ChatApp() {
   const loadChats = useCallback(async () => {
     const { data, error } = await supabase
       .from("chats")
-      .select("id,title,mode,created_at,updated_at")
+      .select("id,title,mode,pinned_at,created_at,updated_at")
+      .order("pinned_at", { ascending: false, nullsFirst: false })
       .order("updated_at", { ascending: false })
       .limit(100);
-    if (!error) setChats((data ?? []) as Chat[]);
+
+    if (!error) setChats(sortChats((data ?? []) as Chat[]));
   }, [supabase]);
 
   const loadMessages = useCallback(async (chatId: string) => {
@@ -93,6 +135,7 @@ export default function ChatApp() {
       .eq("chat_id", chatId)
       .in("role", ["user", "assistant"])
       .order("created_at", { ascending: true });
+
     if (!error) setMessages((data ?? []) as Message[]);
   }, [supabase]);
 
@@ -103,19 +146,23 @@ export default function ChatApp() {
       .order("importance", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(150);
+
     setMemories((data ?? []) as Memory[]);
   }, [supabase]);
 
   useEffect(() => {
     void loadChats();
+
     void (async () => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) return;
+
       const { data } = await supabase
         .from("profiles")
         .select("allow_training")
         .eq("id", userData.user.id)
         .maybeSingle();
+
       if (data) setAllowTraining(Boolean(data.allow_training));
     })();
   }, [loadChats, supabase]);
@@ -136,14 +183,22 @@ export default function ChatApp() {
 
   async function ensureChat() {
     if (activeChatId) return activeChatId;
+
     const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData.user) throw new Error("Session expired");
+    if (userError || !userData.user) throw new Error("Сессия истекла. Войди в аккаунт снова.");
+
     const { data, error } = await supabase
       .from("chats")
-      .insert({ user_id: userData.user.id, title: "New chat", mode: thinkingMode })
+      .insert({
+        user_id: userData.user.id,
+        title: "Новый чат",
+        mode: thinkingMode,
+      })
       .select("id")
       .single();
+
     if (error) throw error;
+
     setActiveChatId(data.id);
     await loadChats();
     return data.id as string;
@@ -152,21 +207,105 @@ export default function ChatApp() {
   async function changeThinkingMode(mode: ThinkingMode) {
     setThinkingMode(mode);
     if (!activeChatId) return;
-    const { error } = await supabase.from("chats").update({ mode }).eq("id", activeChatId);
+
+    const { error } = await supabase
+      .from("chats")
+      .update({ mode })
+      .eq("id", activeChatId);
+
     if (!error) {
-      setChats((current) => current.map((chat) => chat.id === activeChatId ? { ...chat, mode } : chat));
+      setChats((current) =>
+        current.map((chat) =>
+          chat.id === activeChatId ? { ...chat, mode } : chat,
+        ),
+      );
+    }
+  }
+
+  async function renameChat(chat: Chat) {
+    const nextTitle = window.prompt("Новое название чата:", chat.title)?.trim();
+    setChatMenuId(null);
+    if (!nextTitle || nextTitle === chat.title) return;
+
+    const { error } = await supabase
+      .from("chats")
+      .update({ title: nextTitle.slice(0, 120) })
+      .eq("id", chat.id);
+
+    if (error) {
+      setNotice("Не удалось переименовать чат.");
+      return;
+    }
+
+    setChats((current) =>
+      current.map((item) =>
+        item.id === chat.id ? { ...item, title: nextTitle.slice(0, 120) } : item,
+      ),
+    );
+  }
+
+  async function togglePinChat(chat: Chat) {
+    setChatMenuId(null);
+    const pinnedAt = chat.pinned_at ? null : new Date().toISOString();
+
+    const { error } = await supabase
+      .from("chats")
+      .update({ pinned_at: pinnedAt })
+      .eq("id", chat.id);
+
+    if (error) {
+      setNotice("Не удалось изменить закрепление чата.");
+      return;
+    }
+
+    setChats((current) =>
+      sortChats(
+        current.map((item) =>
+          item.id === chat.id ? { ...item, pinned_at: pinnedAt } : item,
+        ),
+      ),
+    );
+  }
+
+  async function deleteChat(chat: Chat) {
+    setChatMenuId(null);
+    const confirmed = window.confirm(
+      `Удалить чат «${chat.title}»? Это действие нельзя отменить.`,
+    );
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("chats")
+      .delete()
+      .eq("id", chat.id);
+
+    if (error) {
+      setNotice("Не удалось удалить чат.");
+      return;
+    }
+
+    setChats((current) => current.filter((item) => item.id !== chat.id));
+
+    if (activeChatId === chat.id) {
+      setActiveChatId(null);
+      setMessages([]);
+      setPendingAttachment(null);
     }
   }
 
   function selectAttachment(file: File) {
     if (!isImageFile(file) && !isDocumentFile(file)) {
-      setNotice("Supported attachments: PDF, TXT, Markdown, JSON, JPG, PNG and WebP.");
+      setNotice("Поддерживаются PDF, TXT, Markdown, JSON, JPG, PNG и WebP.");
       return;
     }
 
     const maxSize = isImageFile(file) ? 8 * 1024 * 1024 : 15 * 1024 * 1024;
     if (file.size <= 0 || file.size > maxSize) {
-      setNotice(isImageFile(file) ? "Image must be 8 MB or smaller." : "Document must be 15 MB or smaller.");
+      setNotice(
+        isImageFile(file)
+          ? "Размер изображения не должен превышать 8 МБ."
+          : "Размер документа не должен превышать 15 МБ.",
+      );
       return;
     }
 
@@ -177,26 +316,29 @@ export default function ChatApp() {
   async function readError(response: Response, fallback: string) {
     const raw = await response.text().catch(() => "");
     if (!raw) return fallback;
+
     try {
       const parsed = JSON.parse(raw) as { error?: string };
       return parsed.error || fallback;
     } catch {
-      return raw.slice(0, 600);
+      return raw.slice(0, 700);
     }
   }
 
   async function send(event: FormEvent) {
     event.preventDefault();
+
     const attachment = pendingAttachment;
     const text = input.trim();
     if ((!text && !attachment) || loading) return;
 
     const image = attachment && isImageFile(attachment) ? attachment : null;
     const document = attachment && isDocumentFile(attachment) ? attachment : null;
+
     const prompt = text || (
       image
-        ? "Analyze this image and explain the important details."
-        : "Read this document and tell me the most important information."
+        ? "Разбери это изображение и объясни всё важное."
+        : "Прочитай этот документ, разберись в нём и выдели самое важное."
     );
 
     const optimisticAttachment: ChatAttachment | undefined = attachment
@@ -206,12 +348,15 @@ export default function ChatApp() {
     setInput("");
     setLoading(true);
     setNotice("");
+
     setMessages((current) => [
       ...current,
       {
         role: "user",
         content: prompt,
-        metadata: optimisticAttachment ? { attachments: [optimisticAttachment] } : null,
+        metadata: optimisticAttachment
+          ? { attachments: [optimisticAttachment] }
+          : null,
       },
       { role: "assistant", content: "" },
     ]);
@@ -233,39 +378,70 @@ export default function ChatApp() {
           const form = new FormData();
           form.append("chatId", chatId);
           form.append("file", document);
-          const upload = await fetch("/api/documents", { method: "POST", body: form });
-          if (!upload.ok) throw new Error(await readError(upload, "Document upload failed"));
+
+          const upload = await fetch("/api/documents", {
+            method: "POST",
+            body: form,
+          });
+
+          if (!upload.ok) {
+            throw new Error(
+              await readError(upload, "Не удалось загрузить документ."),
+            );
+          }
 
           const raw = await upload.text();
-          const data = raw ? JSON.parse(raw) as { document?: { id?: string } } : {};
+          const data = raw
+            ? JSON.parse(raw) as { document?: { id?: string } }
+            : {};
+
           const documentId = data.document?.id;
-          if (!documentId) throw new Error("TENSORRA could not attach the document to this chat.");
+          if (!documentId) {
+            throw new Error("TENSORRA не смогла привязать документ к чату.");
+          }
+
           documentIds = [documentId];
         }
 
         response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chatId, message: prompt, documentIds }),
+          body: JSON.stringify({
+            chatId,
+            message: prompt,
+            documentIds,
+          }),
         });
       }
 
-      if (!response.ok) throw new Error(await readError(response, "TENSORRA request failed"));
-      if (!response.body) throw new Error("Streaming response is unavailable");
+      if (!response.ok) {
+        throw new Error(await readError(response, "Не удалось получить ответ TENSORRA."));
+      }
+      if (!response.body) {
+        throw new Error("Поток ответа недоступен.");
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+
         const chunk = decoder.decode(value, { stream: true });
         if (!chunk) continue;
+
         setMessages((current) => {
           const copy = [...current];
           const last = copy[copy.length - 1];
+
           if (last?.role === "assistant") {
-            copy[copy.length - 1] = { ...last, content: last.content + chunk };
+            copy[copy.length - 1] = {
+              ...last,
+              content: last.content + chunk,
+            };
           }
+
           return copy;
         });
       }
@@ -274,13 +450,23 @@ export default function ChatApp() {
       await loadChats();
       await loadMessages(chatId);
     } catch (error) {
-      const textError = error instanceof Error ? error.message : "Unexpected error";
+      const textError = error instanceof Error
+        ? error.message
+        : "Произошла неизвестная ошибка.";
+
       setMessages((current) => {
         const copy = [...current];
         const last = copy[copy.length - 1];
+
         if (last?.role === "assistant") {
-          copy[copy.length - 1] = { ...last, content: `Error: ${textError}` };
+          copy[copy.length - 1] = {
+            ...last,
+            content: last.content
+              ? `${last.content}\n\n⚠️ Ответ прервался: ${textError}`
+              : `⚠️ ${textError}`,
+          };
         }
+
         return copy;
       });
     } finally {
@@ -290,14 +476,18 @@ export default function ChatApp() {
 
   function startVoiceInput() {
     if (typeof window === "undefined") return;
+
     const speechWindow = window as typeof window & {
       SpeechRecognition?: SpeechRecognitionCtor;
       webkitSpeechRecognition?: SpeechRecognitionCtor;
     };
-    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+
+    const Recognition =
+      speechWindow.SpeechRecognition ??
+      speechWindow.webkitSpeechRecognition;
 
     if (!Recognition) {
-      setNotice("Voice input is not supported in this browser yet.");
+      setNotice("Голосовой ввод не поддерживается этим браузером.");
       return;
     }
 
@@ -307,26 +497,35 @@ export default function ChatApp() {
     }
 
     const recognition = new Recognition();
-    recognition.lang = navigator.language || "en-US";
+    recognition.lang = "ru-RU";
     recognition.interimResults = true;
     recognition.continuous = false;
+
     const base = input.trim();
 
     recognition.onresult = (event) => {
       let transcript = "";
+
       for (let i = 0; i < event.results.length; i += 1) {
         transcript += event.results[i]?.[0]?.transcript ?? "";
       }
-      setInput([base, transcript.trim()].filter(Boolean).join(base ? " " : ""));
+
+      setInput(
+        [base, transcript.trim()]
+          .filter(Boolean)
+          .join(base ? " " : ""),
+      );
     };
+
     recognition.onend = () => {
       setListening(false);
       speechRecognitionRef.current = null;
     };
+
     recognition.onerror = () => {
       setListening(false);
       speechRecognitionRef.current = null;
-      setNotice("Voice input stopped. Check microphone permission and try again.");
+      setNotice("Голосовой ввод остановлен. Проверь разрешение на микрофон.");
     };
 
     speechRecognitionRef.current = recognition;
@@ -337,35 +536,48 @@ export default function ChatApp() {
 
   function speakAnswer(text: string) {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      setNotice("Read-aloud is not supported in this browser.");
+      setNotice("Озвучивание не поддерживается этим браузером.");
       return;
     }
+
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text.slice(0, 12000));
-    utterance.lang = navigator.language || "en-US";
+    utterance.lang = "ru-RU";
     window.speechSynthesis.speak(utterance);
   }
 
   async function deleteMemory(id: string) {
-    const { error } = await supabase.from("memories").delete().eq("id", id);
-    if (!error) setMemories((current) => current.filter((item) => item.id !== id));
+    const { error } = await supabase
+      .from("memories")
+      .delete()
+      .eq("id", id);
+
+    if (!error) {
+      setMemories((current) =>
+        current.filter((item) => item.id !== id),
+      );
+    }
   }
 
   async function toggleTraining() {
     const next = !allowTraining;
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
+
     const { error } = await supabase
       .from("profiles")
       .update({ allow_training: next })
       .eq("id", userData.user.id);
+
     if (!error) setAllowTraining(next);
   }
 
   async function rateMessage(message: Message, rating: -1 | 1) {
     if (!message.id) return;
+
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
+
     const { error } = await supabase.from("message_feedback").upsert({
       user_id: userData.user.id,
       message_id: message.id,
@@ -375,7 +587,12 @@ export default function ChatApp() {
       eligible_for_training: allowTraining,
     }, { onConflict: "user_id,message_id" });
 
-    if (!error) setFeedback((current) => ({ ...current, [message.id!]: rating }));
+    if (!error) {
+      setFeedback((current) => ({
+        ...current,
+        [message.id!]: rating,
+      }));
+    }
   }
 
   async function signOut() {
@@ -391,12 +608,21 @@ export default function ChatApp() {
   }
 
   return (
-    <main className="appShell">
+    <main className="appShell" onClick={() => chatMenuId && setChatMenuId(null)}>
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brandRow">
           <div className="tensorMark">T</div>
-          <div className="brandText"><strong>TENSORRA</strong><span>v0.7 · autonomous context</span></div>
-          <button className="iconButton mobileOnly" onClick={() => setSidebarOpen(false)} aria-label="Close sidebar">×</button>
+          <div className="brandText">
+            <strong>TENSORRA</strong>
+            <span>v0.8 · умный роутер</span>
+          </div>
+          <button
+            className="iconButton mobileOnly"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Закрыть боковую панель"
+          >
+            ×
+          </button>
         </div>
 
         <button
@@ -408,49 +634,109 @@ export default function ChatApp() {
             setSidebarOpen(false);
           }}
         >
-          <span>＋</span> New chat
+          <span>＋</span> Новый чат
         </button>
 
         <div className="sideActions">
-          <button onClick={openMemory}>◈ Memory</button>
+          <button onClick={openMemory}>◈ Память</button>
         </div>
 
         <div className="chatList">
           {chats.map((chat) => (
-            <button
-              key={chat.id}
-              className={`chatItem ${activeChatId === chat.id ? "active" : ""}`}
-              onClick={() => {
-                setActiveChatId(chat.id);
-                setPendingAttachment(null);
-                setSidebarOpen(false);
-              }}
-            >
-              <span>{chat.title}</span>
-            </button>
+            <div className="chatRow" key={chat.id}>
+              <button
+                className={`chatItem ${activeChatId === chat.id ? "active" : ""}`}
+                onClick={() => {
+                  setActiveChatId(chat.id);
+                  setPendingAttachment(null);
+                  setSidebarOpen(false);
+                }}
+                title={chat.title}
+              >
+                {chat.pinned_at ? <span className="pinMark">◆</span> : null}
+                <span>{chat.title}</span>
+              </button>
+
+              <button
+                className="chatMenuButton"
+                aria-label="Меню чата"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setChatMenuId((current) =>
+                    current === chat.id ? null : chat.id,
+                  );
+                }}
+              >
+                ⋯
+              </button>
+
+              {chatMenuId === chat.id ? (
+                <div
+                  className="chatMenu"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <button onClick={() => void togglePinChat(chat)}>
+                    {chat.pinned_at ? "Открепить" : "Закрепить"}
+                  </button>
+                  <button onClick={() => void renameChat(chat)}>
+                    Переименовать
+                  </button>
+                  <button
+                    className="danger"
+                    onClick={() => void deleteChat(chat)}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              ) : null}
+            </div>
           ))}
         </div>
 
         <div className="sidebarFooter">
-          <div className="memoryHint"><span className="dot" /> Auto memory · files · web · code</div>
+          <div className="memoryHint">
+            <span className="dot" /> Память · файлы · веб · код — автоматически
+          </div>
+
           <button
             className={`trainingToggle ${allowTraining ? "active" : ""}`}
             onClick={() => void toggleTraining()}
           >
-            <span>{allowTraining ? "✓" : "○"}</span> Use my rated chats to improve TENSORRA
+            <span>{allowTraining ? "✓" : "○"}</span>
+            Использовать мои оценки для улучшения TENSORRA
           </button>
+
           <InstallAppButton compact />
-          <button className="ghostButton" onClick={signOut}>Sign out</button>
+          <button className="ghostButton" onClick={signOut}>
+            Выйти
+          </button>
         </div>
       </aside>
 
-      {sidebarOpen ? <button className="scrim" aria-label="Close sidebar" onClick={() => setSidebarOpen(false)} /> : null}
+      {sidebarOpen ? (
+        <button
+          className="scrim"
+          aria-label="Закрыть боковую панель"
+          onClick={() => setSidebarOpen(false)}
+        />
+      ) : null}
 
       <section className="workspace">
         <header className="topbar">
-          <button className="iconButton mobileOnly" onClick={() => setSidebarOpen(true)} aria-label="Open sidebar">☰</button>
-          <div><strong>TENSORRA</strong><span className="statusText">auto context · reasoning · memory</span></div>
-          <div className="modeSwitcher" aria-label="Thinking mode">
+          <button
+            className="iconButton mobileOnly"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Открыть боковую панель"
+          >
+            ☰
+          </button>
+
+          <div>
+            <strong>TENSORRA</strong>
+            <span className="statusText">контекст · рассуждение · память</span>
+          </div>
+
+          <div className="modeSwitcher" aria-label="Режим мышления">
             {MODES.map((mode) => (
               <button
                 key={mode.id}
@@ -471,82 +757,169 @@ export default function ChatApp() {
             <section className="hero">
               <div className="heroMark">T</div>
               <p className="eyebrow">TENSORRA CORE</p>
-              <h1>Just ask. TENSORRA chooses the tools.</h1>
+              <h1>TENSORRA сама выбирает, что ей нужно.</h1>
               <p className="heroSub">
-                Attach a PDF or image, ask about current information, calculations or past context.
-                TENSORRA decides when to use files, memory, web, code or vision.
+                Прикрепляй PDF или изображения, задавай вопросы о свежих данных,
+                расчётах или прошлых обсуждениях. Память, веб, код и Vision
+                подключаются автоматически.
               </p>
+
               <div className="suggestions">
-                <button onClick={() => setInput("What are the most important AI developments right now?")}>Ask something current</button>
-                <button onClick={() => setInput("Analyze this problem deeply, challenge my assumptions and give me a plan.")}>Think through a hard problem</button>
-                <button onClick={() => attachInput.current?.click()}>Attach a PDF or image</button>
+                <button
+                  onClick={() =>
+                    setInput("Какие важные события в сфере ИИ произошли сегодня?")
+                  }
+                >
+                  Узнать актуальную информацию
+                </button>
+                <button
+                  onClick={() =>
+                    setInput("Разбери эту проблему глубоко и предложи план действий.")
+                  }
+                >
+                  Глубоко разобрать задачу
+                </button>
+                <button onClick={() => attachInput.current?.click()}>
+                  Прикрепить PDF или изображение
+                </button>
               </div>
             </section>
           ) : (
             <div className="messageColumn">
               {messages.map((message, index) => (
-                <article className={`messageRow ${message.role}`} key={message.id ?? `${message.role}-${index}`}>
-                  <div className="messageAvatar">{message.role === "assistant" ? "T" : "You"}</div>
+                <article
+                  className={`messageRow ${message.role}`}
+                  key={message.id ?? `${message.role}-${index}`}
+                >
+                  <div className="messageAvatar">
+                    {message.role === "assistant" ? "T" : "Вы"}
+                  </div>
+
                   <div>
-                    <div className="messageLabel">{message.role === "assistant" ? "TENSORRA" : "YOU"}</div>
+                    <div className="messageLabel">
+                      {message.role === "assistant" ? "TENSORRA" : "ВЫ"}
+                    </div>
 
                     {message.metadata?.attachments?.length ? (
                       <div className="messageAttachments">
-                        {message.metadata.attachments.map((attachment, attachmentIndex) => (
-                          <span key={`${attachment.filename}-${attachmentIndex}`}>
-                            {attachment.kind === "image" ? "▧" : "▣"} {attachment.filename}
-                          </span>
-                        ))}
+                        {message.metadata.attachments.map(
+                          (attachment, attachmentIndex) => (
+                            <span
+                              key={`${attachment.filename}-${attachmentIndex}`}
+                            >
+                              {attachment.kind === "image" ? "▧" : "▣"}{" "}
+                              {attachment.filename}
+                            </span>
+                          ),
+                        )}
                       </div>
                     ) : null}
 
-                    <div className={`messageContent ${message.role === "assistant" && loading && index === messages.length - 1 && !message.content ? "thinking" : ""}`}>
-                      {message.content || (message.role === "assistant" ? "Thinking" : "")}
+                    <div
+                      className={`messageContent ${
+                        message.role === "assistant" &&
+                        loading &&
+                        index === messages.length - 1 &&
+                        !message.content
+                          ? "thinking"
+                          : ""
+                      }`}
+                    >
+                      {message.content || (
+                        message.role === "assistant" ? "Думаю" : ""
+                      )}
                     </div>
 
-                    {message.role === "assistant" && message.metadata?.sources?.length ? (
+                    {message.role === "assistant" &&
+                    message.metadata?.sources?.length ? (
                       <div className="sourceList">
-                        {message.metadata.sources.slice(0, 8).map((source, sourceIndex) => (
-                          <a key={source.url} href={source.url} target="_blank" rel="noreferrer" title={source.url}>
-                            <span>{sourceIndex + 1}</span>
-                            <strong>{source.title}</strong>
-                          </a>
-                        ))}
+                        {message.metadata.sources
+                          .slice(0, 8)
+                          .map((source, sourceIndex) => (
+                            <a
+                              key={source.url}
+                              href={source.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={source.url}
+                            >
+                              <span>{sourceIndex + 1}</span>
+                              <strong>{source.title}</strong>
+                            </a>
+                          ))}
                       </div>
                     ) : null}
 
                     {message.role === "assistant" && message.id ? (
                       <div className="feedbackRow">
-                        <button className={feedback[message.id] === 1 ? "active" : ""} onClick={() => void rateMessage(message, 1)}>↑ Good</button>
-                        <button className={feedback[message.id] === -1 ? "active" : ""} onClick={() => void rateMessage(message, -1)}>↓ Bad</button>
-                        <button onClick={() => speakAnswer(message.content)}>◌ Listen</button>
+                        <button
+                          className={
+                            feedback[message.id] === 1 ? "active" : ""
+                          }
+                          onClick={() => void rateMessage(message, 1)}
+                        >
+                          ↑ Хорошо
+                        </button>
+                        <button
+                          className={
+                            feedback[message.id] === -1 ? "active" : ""
+                          }
+                          onClick={() => void rateMessage(message, -1)}
+                        >
+                          ↓ Плохо
+                        </button>
+                        <button onClick={() => speakAnswer(message.content)}>
+                          ◌ Озвучить
+                        </button>
                       </div>
                     ) : null}
                   </div>
                 </article>
               ))}
+
               <div ref={endRef} />
             </div>
           )}
         </div>
 
         <div className="composerWrap">
-          {notice ? <div className="composerNotice">{notice}</div> : null}
+          {notice ? (
+            <div className="composerNotice">{notice}</div>
+          ) : null}
 
           {pendingAttachment ? (
             <div className="imageChip">
-              <span>{isImageFile(pendingAttachment) ? "▧" : "▣"} {pendingAttachment.name}</span>
-              <button type="button" onClick={() => setPendingAttachment(null)} aria-label="Remove attachment">×</button>
+              <span>
+                {isImageFile(pendingAttachment) ? "▧" : "▣"}{" "}
+                {pendingAttachment.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPendingAttachment(null)}
+                aria-label="Убрать вложение"
+              >
+                ×
+              </button>
             </div>
           ) : null}
 
           <div className="toolStrip">
-            <button type="button" onClick={() => attachInput.current?.click()} disabled={loading}>
-              ＋ Attach
+            <button
+              type="button"
+              onClick={() => attachInput.current?.click()}
+              disabled={loading}
+            >
+              ＋ Прикрепить
             </button>
-            <button className={listening ? "active" : ""} type="button" onClick={startVoiceInput}>
-              {listening ? "■ Stop" : "◌ Voice"}
+
+            <button
+              className={listening ? "active" : ""}
+              type="button"
+              onClick={startVoiceInput}
+            >
+              {listening ? "■ Остановить" : "◌ Голос"}
             </button>
+
             <input
               ref={attachInput}
               hidden
@@ -570,14 +943,27 @@ export default function ChatApp() {
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder={pendingAttachment ? "Ask about this attachment…" : "Ask TENSORRA anything…"}
+              placeholder={
+                pendingAttachment
+                  ? "Что сделать с этим файлом?"
+                  : "Спросите TENSORRA о чём угодно…"
+              }
               rows={1}
             />
-            <button className="sendButton" type="submit" disabled={(!input.trim() && !pendingAttachment) || loading}>↑</button>
+
+            <button
+              className="sendButton"
+              type="submit"
+              disabled={(!input.trim() && !pendingAttachment) || loading}
+              aria-label="Отправить"
+            >
+              ↑
+            </button>
           </form>
 
           <div className="composerNote">
-            TENSORRA automatically chooses memory, private files, web search, code execution and vision when needed.
+            TENSORRA сама решает, когда использовать память, файлы, интернет,
+            вычисления и анализ изображений.
           </div>
         </div>
       </section>
@@ -585,22 +971,37 @@ export default function ChatApp() {
       {panel === "memory" ? (
         <div className="rightPanel">
           <div className="panelHead">
-            <div><p className="eyebrow">TENSORRA</p><h2>Memory</h2></div>
-            <button className="iconButton" onClick={() => setPanel("none")}>×</button>
+            <div>
+              <p className="eyebrow">TENSORRA</p>
+              <h2>Память</h2>
+            </div>
+            <button
+              className="iconButton"
+              onClick={() => setPanel("none")}
+              aria-label="Закрыть память"
+            >
+              ×
+            </button>
           </div>
+
           <div className="panelList">
-            {memories.length ? memories.map((memory) => (
-              <div className="panelItem" key={memory.id}>
-                <div>
-                  <strong>{memory.category}</strong>
-                  <p>{memory.content}</p>
-                  <span>importance {memory.importance}/10</span>
+            {memories.length ? (
+              memories.map((memory) => (
+                <div className="panelItem" key={memory.id}>
+                  <div>
+                    <strong>{memoryCategoryLabel(memory.category)}</strong>
+                    <p>{memory.content}</p>
+                    <span>важность: {memory.importance}/10</span>
+                  </div>
+                  <button onClick={() => void deleteMemory(memory.id)}>
+                    Удалить
+                  </button>
                 </div>
-                <button onClick={() => void deleteMemory(memory.id)}>Delete</button>
-              </div>
-            )) : (
+              ))
+            ) : (
               <p className="panelEmpty">
-                No durable memories yet. TENSORRA saves useful long-term context automatically.
+                Долговременной памяти пока нет. TENSORRA будет сохранять только
+                полезные факты, цели и предпочтения.
               </p>
             )}
           </div>
