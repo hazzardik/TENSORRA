@@ -758,7 +758,7 @@ export default function ChatApp() {
           {messages.length === 0 ? (
             <section className="hero">
               <div className="heroMark">T</div>
-              <p className="eyebrow">TENSORRA CORE</p>
+              <p className="eyebrow">ЯДРО TENSORRA</p>
               <h1>TENSORRA сама выбирает, что ей нужно.</h1>
               <p className="heroSub">
                 Прикрепляй PDF или изображения, задавай вопросы о свежих данных,
