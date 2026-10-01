@@ -8,13 +8,13 @@ function translateAuthError(message: string) {
   const lower = message.toLocaleLowerCase();
 
   if (lower.includes("invalid login credentials")) {
-    return "Неверный email или пароль.";
+    return "Неверная электронная почта или пароль.";
   }
   if (lower.includes("email not confirmed")) {
-    return "Сначала подтвердите email по ссылке из письма.";
+    return "Сначала подтвердите электронную почту по ссылке из письма.";
   }
   if (lower.includes("user already registered")) {
-    return "Аккаунт с таким email уже существует.";
+    return "Аккаунт с такой электронной почтой уже существует.";
   }
   if (lower.includes("password should be at least")) {
     return "Пароль слишком короткий.";
@@ -58,7 +58,7 @@ export default function LoginPage() {
           router.replace("/app");
           router.refresh();
         } else {
-          setStatus("Аккаунт создан. Подтвердите email по ссылке из письма, затем войдите.");
+          setStatus("Аккаунт создан. Подтвердите электронную почту по ссылке из письма, затем войдите.");
         }
       }
     } catch (error) {
@@ -97,7 +97,7 @@ export default function LoginPage() {
 
         <form className="authForm" onSubmit={submit}>
           <label>
-            Email
+            Электронная почта
             <input
               type="email"
               required
