@@ -274,13 +274,15 @@ export default function ChatApp() {
     );
     if (!confirmed) return;
 
-    const { error } = await supabase
-      .from("chats")
-      .delete()
-      .eq("id", chat.id);
+    const response = await fetch(
+      `/api/chats?id=${encodeURIComponent(chat.id)}`,
+      { method: "DELETE" },
+    );
 
-    if (error) {
-      setNotice("Не удалось удалить чат.");
+    if (!response.ok) {
+      setNotice(
+        await readError(response, "Не удалось удалить чат."),
+      );
       return;
     }
 
