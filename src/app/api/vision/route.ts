@@ -113,7 +113,11 @@ export async function POST(request: Request) {
       user_id: userId,
       role: "user",
       content: message,
-      metadata: { vision: true, image_filename: image.name.slice(0, 240) },
+      metadata: {
+        vision: true,
+        image_filename: image.name.slice(0, 240),
+        attachments: [{ kind: "image", filename: image.name.slice(0, 240) }],
+      },
     })
     .select("id")
     .single();
@@ -152,7 +156,7 @@ export async function POST(request: Request) {
     (memories ?? []) as Array<{ content: string; category?: string | null }>,
     [],
     "",
-    { research: false },
+    { research: false, autonomousTools: false },
   ) + "\n\nVision mode: inspect the supplied image carefully. Do not claim to see details that are not actually visible.";
 
   const model = process.env.TENSORRA_VISION_MODEL ?? "qwen/qwen3.8-27b";
