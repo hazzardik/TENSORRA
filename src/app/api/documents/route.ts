@@ -16,7 +16,18 @@ export async function POST(request: Request) {
 
   const form = await request.formData();
   const file = form.get("file");
+  const chatId = String(form.get("chatId") ?? "").trim() || null;
   if (!(file instanceof File)) return Response.json({ error: "File is required" }, { status: 400 });
+
+  if (chatId) {
+    const { data: chat } = await supabase
+      .from("chats")
+      .select("id")
+      .eq("id", chatId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!chat) return Response.json({ error: "Chat not found" }, { status: 404 });
+  }
   if (file.size <= 0 || file.size > MAX_FILE_SIZE) return Response.json({ error: "File must be 15 MB or smaller" }, { status: 413 });
   if (!ACCEPTED.has(file.type) && !file.name.toLocaleLowerCase().endsWith(".md")) {
     return Response.json({ error: "Supported: PDF, TXT, Markdown, JSON" }, { status: 415 });
@@ -72,10 +83,33 @@ export async function POST(request: Request) {
 
     await supabase.from("documents").update({
       status: "ready",
-      metadata: { extracted_chars: text.length, chunks: rows.length },
+      metadata: {
+        extracted_chars: text.length,
+        chunks: rows.length,
+        source: chatId ? "chat_attachment" : "upload",
+      },
     }).eq("id", document.id).eq("user_id", userId);
 
-    return Response.json({ document: { ...document, status: "ready", chunks: rows.length } });
+    let attachment = null;
+    if (chatId) {
+      const { data } = await supabase.from("attachments").insert({
+        user_id: userId,
+        chat_id: chatId,
+        kind: "file",
+        filename: file.name.slice(0, 240),
+        mime_type: file.type || "application/octet-stream",
+        storage_path: storagePath,
+        size_bytes: file.size,
+        metadata: { document_id: document.id },
+      }).select("id").single();
+      attachment = data;
+    }
+
+    return Response.json({
+      kind: "document",
+      document: { ...document, status: "ready", chunks: rows.length },
+      attachment,
+    });
   } catch (error) {
     await supabase.from("documents").update({
       status: "failed",
