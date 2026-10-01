@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
   const form = await request.formData();
   const chatId = String(form.get("chatId") ?? "").trim();
-  const message = String(form.get("message") ?? "").trim() || "Analyze this image and explain the important details.";
+  const message = String(form.get("message") ?? "").trim() || "Разбери это изображение и объясни всё важное.";
   const image = form.get("image");
 
   if (!chatId || !(image instanceof File)) {
