@@ -165,7 +165,7 @@ function selectAttachedKnowledge(
   }
 
   let usedChars = 0;
-  const maxChars = 24000;
+  const maxChars = 11000;
   const result: KnowledgeItem[] = [];
 
   for (const chunk of [...selected.values()].sort((a, b) => {
@@ -187,7 +187,7 @@ function selectAttachedKnowledge(
   return result;
 }
 
-function trimConversation(messages: StoredMessage[], maxChars = 18000) {
+function trimConversation(messages: StoredMessage[], maxChars = 6500) {
   const result: StoredMessage[] = [];
   let used = 0;
 
