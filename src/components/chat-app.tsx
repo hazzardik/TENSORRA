@@ -14,7 +14,11 @@ type Message = {
   content: string;
   model_name?: string | null;
   created_at?: string;
-  metadata?: { sources?: ResearchSource[] } | null;
+  metadata?: {
+    sources?: ResearchSource[];
+    vision?: boolean;
+    image_filename?: string;
+  } | null;
 };
 type Memory = { id: string; content: string; category: string; importance: number; created_at: string };
 type Document = { id: string; filename: string; status: string; size_bytes: number | null; created_at: string };
@@ -60,9 +64,11 @@ export default function ChatApp() {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
   const [notice, setNotice] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
+  const imageInput = useRef<HTMLInputElement | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const loadChats = useCallback(async () => {
@@ -126,18 +132,40 @@ export default function ChatApp() {
 
   async function send(event: FormEvent) {
     event.preventDefault();
+    const image = pendingImage;
     const text = input.trim();
-    if (!text || loading) return;
+    if ((!text && !image) || loading) return;
+
+    const prompt = text || "Analyze this image and explain the important details.";
     setInput(""); setLoading(true); setNotice("");
-    setMessages((current) => [...current, { role: "user", content: text }, { role: "assistant", content: "" }]);
+    setMessages((current) => [
+      ...current,
+      {
+        role: "user",
+        content: image ? `${prompt}\n\n[Image: ${image.name}]` : prompt,
+        metadata: image ? { vision: true, image_filename: image.name } : null,
+      },
+      { role: "assistant", content: "" },
+    ]);
 
     try {
       const chatId = await ensureChat();
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, message: text, tools: { web: webTool, code: codeTool }, research: researchMode }),
-      });
+      let response: Response;
+
+      if (image) {
+        const form = new FormData();
+        form.append("chatId", chatId);
+        form.append("message", prompt);
+        form.append("image", image);
+        response = await fetch("/api/vision", { method: "POST", body: form });
+      } else {
+        response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chatId, message: prompt, tools: { web: webTool, code: codeTool }, research: researchMode }),
+        });
+      }
+
       if (!response.ok) throw new Error((await response.text()) || "TENSORRA request failed");
       if (!response.body) throw new Error("Streaming response is unavailable");
 
@@ -155,6 +183,8 @@ export default function ChatApp() {
           return copy;
         });
       }
+
+      if (image) setPendingImage(null);
       await loadChats();
       await loadMessages(chatId);
     } catch (error) {
@@ -287,7 +317,7 @@ export default function ChatApp() {
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brandRow">
           <div className="tensorMark">T</div>
-          <div className="brandText"><strong>TENSORRA</strong><span>v0.5 · research + voice</span></div>
+          <div className="brandText"><strong>TENSORRA</strong><span>v0.6 · research + vision</span></div>
           <button className="iconButton mobileOnly" onClick={() => setSidebarOpen(false)} aria-label="Close sidebar">×</button>
         </div>
 
@@ -370,19 +400,44 @@ export default function ChatApp() {
 
         <div className="composerWrap">
           {notice ? <div className="composerNotice">{notice}</div> : null}
+          {pendingImage ? (
+            <div className="imageChip">
+              <span>◫ {pendingImage.name}</span>
+              <button type="button" onClick={() => setPendingImage(null)} aria-label="Remove image">×</button>
+            </div>
+          ) : null}
           <div className="toolStrip">
             <button className={researchMode ? "active" : ""} onClick={() => setResearchMode((v) => !v)}>◉ Research</button>
             <button className={webTool || researchMode ? "active" : ""} onClick={() => setWebTool((v) => !v)} disabled={researchMode}>◎ Web</button>
             <button className={codeTool ? "active" : ""} onClick={() => setCodeTool((v) => !v)}>⌘ Code</button>
             <button className={listening ? "active" : ""} onClick={startVoiceInput}>{listening ? "■ Stop" : "◌ Voice"}</button>
+            <button className={pendingImage ? "active" : ""} onClick={() => imageInput.current?.click()}>▧ Image</button>
             <button onClick={() => fileInput.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "+ File"}</button>
+            <input
+              ref={imageInput}
+              hidden
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                if (file.size > 8 * 1024 * 1024) {
+                  setNotice("Image must be 8 MB or smaller.");
+                  e.currentTarget.value = "";
+                  return;
+                }
+                setPendingImage(file);
+                setNotice("");
+                e.currentTarget.value = "";
+              }}
+            />
             <input ref={fileInput} hidden type="file" accept="application/pdf,text/plain,text/markdown,application/json,.md" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadFile(file); }} />
           </div>
           <form className="composer" onSubmit={send}>
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder="Ask TENSORRA anything…" rows={1} />
-            <button className="sendButton" type="submit" disabled={!input.trim() || loading}>↑</button>
+            <button className="sendButton" type="submit" disabled={(!input.trim() && !pendingImage) || loading}>↑</button>
           </form>
-          <div className="composerNote">Auto chooses reasoning depth. Research forces Max + Web + verification. Voice uses browser speech APIs.</div>
+          <div className="composerNote">Auto chooses reasoning depth. Research adds web verification. Vision uses Qwen 3.8 for image understanding.</div>
         </div>
       </section>
 
