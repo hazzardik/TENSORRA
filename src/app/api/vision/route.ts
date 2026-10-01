@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
-  if (!userId) return new Response("Unauthorized", { status: 401 });
+  if (!userId) return new Response("Требуется вход в аккаунт.", { status: 401 });
 
   const form = await request.formData();
   const chatId = String(form.get("chatId") ?? "").trim();
@@ -57,13 +57,13 @@ export async function POST(request: Request) {
   const image = form.get("image");
 
   if (!chatId || !(image instanceof File)) {
-    return new Response("chatId and image are required", { status: 400 });
+    return new Response("Не указан чат или изображение.", { status: 400 });
   }
 
   const mimeType = inferMime(image);
-  if (!mimeType) return new Response("Supported images: JPEG, PNG, WebP", { status: 415 });
+  if (!mimeType) return new Response("Поддерживаются изображения JPEG, PNG и WebP.", { status: 415 });
   if (image.size <= 0 || image.size > MAX_IMAGE_SIZE) {
-    return new Response("Image must be 8 MB or smaller", { status: 413 });
+    return new Response("Размер изображения не должен превышать 8 МБ.", { status: 413 });
   }
 
   const { data: chat, error: chatError } = await supabase
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     .eq("id", chatId)
     .eq("user_id", userId)
     .single();
-  if (chatError || !chat) return new Response("Chat not found", { status: 404 });
+  if (chatError || !chat) return new Response("Чат не найден.", { status: 404 });
 
   const requestedMode = normalizeThinkingMode(chat.mode);
   const effectiveMode: ConcreteThinkingMode = requestedMode === "auto"
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
   const { error: uploadError } = await supabase.storage
     .from("tensorra-files")
     .upload(storagePath, bytes, { contentType: mimeType, upsert: false });
-  if (uploadError) return new Response(`Image storage failed: ${uploadError.message}`, { status: 500 });
+  if (uploadError) return new Response(`Не удалось сохранить изображение: ${uploadError.message}`, { status: 500 });
 
   const { data: userMessage, error: messageError } = await supabase
     .from("messages")
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
 
   if (messageError || !userMessage) {
     await supabase.storage.from("tensorra-files").remove([storagePath]);
-    return new Response("Could not save vision message", { status: 500 });
+    return new Response("Не удалось сохранить сообщение с изображением.", { status: 500 });
   }
 
   const { data: attachment } = await supabase
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
   }).eq("id", chatId).eq("user_id", userId);
 
   const provider = providerConfig();
-  if (!provider.apiKey) return new Response("AI API key is not configured", { status: 500 });
+  if (!provider.apiKey) return new Response("Ключ AI-провайдера не настроен.", { status: 500 });
 
   const prior = (((history ?? []) as Array<{ role: "user" | "assistant"; content: string }>).reverse()).slice(-16);
   const dataUrl = `data:${mimeType};base64,${bytes.toString("base64")}`;
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
 
   if (!upstream.ok) {
     const detail = await upstream.text().catch(() => "");
-    return new Response(detail || "Vision model request failed", { status: upstream.status || 502 });
+    return new Response(detail || "Не удалось получить ответ модели Vision.", { status: upstream.status || 502 });
   }
 
   const result = await upstream.json().catch(() => null) as {
@@ -201,7 +201,7 @@ export async function POST(request: Request) {
   } | null;
 
   const answer = result?.choices?.[0]?.message?.content?.trim() ?? "";
-  if (!answer) return new Response("Vision model returned an empty response", { status: 502 });
+  if (!answer) return new Response("Модель Vision вернула пустой ответ.", { status: 502 });
 
   await supabase.from("messages").insert({
     chat_id: chatId,
