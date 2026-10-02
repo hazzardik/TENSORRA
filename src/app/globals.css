@@ -619,3 +619,29 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}
 }
+
+.appLoadingShell{
+  min-height:100vh;min-height:100dvh;display:grid;place-items:center;align-content:center;gap:12px;
+  background:
+    radial-gradient(420px 300px at 50% 35%,rgba(121,231,255,.09),transparent 70%),
+    radial-gradient(360px 260px at 65% 65%,rgba(159,140,255,.06),transparent 72%),
+    var(--bg);
+  color:var(--text);text-align:center;padding:24px
+}
+.appLoadingMark{
+  width:62px;height:62px;border-radius:20px;display:grid;place-items:center;
+  background:linear-gradient(135deg,#b8f3ff,#fff 48%,#c7bcff);color:#071016;
+  font-size:28px;font-weight:900;box-shadow:0 18px 55px rgba(121,231,255,.16);
+  animation:heroFloat 2.8s ease-in-out infinite
+}
+.appLoadingPulse{
+  width:120px;height:1px;position:relative;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.06)
+}
+.appLoadingPulse::after{
+  content:"";position:absolute;inset:0 auto 0 -40%;width:40%;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  animation:loadingSweep 1.3s ease-in-out infinite
+}
+.appLoadingShell strong{font-size:14px;letter-spacing:.12em}
+.appLoadingShell span{font-size:11px;color:var(--muted)}
+@keyframes loadingSweep{to{left:140%}}
