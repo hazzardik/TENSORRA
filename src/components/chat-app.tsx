@@ -318,13 +318,46 @@ export default function ChatApp() {
 
   async function readError(response: Response, fallback: string) {
     const raw = await response.text().catch(() => "");
+
+    if (response.status === 401) {
+      window.location.assign("/login");
+      return "Сессия истекла. Выполняю переход на страницу входа.";
+    }
+
     if (!raw) return fallback;
 
     try {
       const parsed = JSON.parse(raw) as { error?: string };
       return parsed.error || fallback;
     } catch {
-      return raw.slice(0, 700);
+      const looksLikeHtml = /^\s*</.test(raw);
+      return looksLikeHtml
+        ? fallback
+        : raw.slice(0, 700);
+    }
+  }
+
+  async function readJsonObject<T extends object>(
+    response: Response,
+    fallback: string,
+  ): Promise<T> {
+    const raw = await response.text().catch(() => "");
+
+    if (response.status === 401) {
+      window.location.assign("/login");
+      throw new Error("Сессия истекла. Выполняю переход на страницу входа.");
+    }
+
+    if (!raw) throw new Error(fallback);
+
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      throw new Error(
+        /^\s*</.test(raw)
+          ? fallback
+          : `${fallback} Сервер вернул некорректный ответ.`,
+      );
     }
   }
 
@@ -394,10 +427,12 @@ export default function ChatApp() {
             );
           }
 
-          const raw = await upload.text();
-          const data = raw
-            ? JSON.parse(raw) as { document?: { id?: string } }
-            : {};
+          const data = await readJsonObject<{
+            document?: { id?: string };
+          }>(
+            upload,
+            "TENSORRA не смогла прочитать ответ сервера после загрузки документа.",
+          );
 
           const documentId = data.document?.id;
           if (!documentId) {
@@ -618,7 +653,7 @@ export default function ChatApp() {
           <div className="tensorMark">T</div>
           <div className="brandText">
             <strong>TENSORRA</strong>
-            <span>v0.9 · адаптивный интерфейс</span>
+            <span>v0.10 · стабильность и файлы</span>
           </div>
           <button
             className="iconButton mobileOnly"
