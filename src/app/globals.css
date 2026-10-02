@@ -518,7 +518,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   .appShell{display:block;height:100vh;height:100dvh}
   .workspace{height:100vh;height:100dvh;grid-template-rows:58px minmax(0,1fr) auto}
   .sidebar{
-    width:min(88vw,330px);height:100vh;height:100dvh;
+    position:fixed;
+    left:0;
+    top:0;
+    bottom:0;
+    z-index:30;
+    width:min(88vw,330px);
+    height:100vh;
+    height:100dvh;
     transform:translateX(-105%);
     transition:transform .32s var(--ease);
     box-shadow:24px 0 90px rgba(0,0,0,.55)
