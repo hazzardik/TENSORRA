@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { ThinkingMode } from "@/lib/tensorra/model-router";
 import InstallAppButton from "./install-app-button";
+import MessageContent from "./message-content";
 
 type Chat = {
   id: string;
@@ -646,14 +647,18 @@ export default function ChatApp() {
     setSidebarOpen(false);
   }
 
+  const menuChat = chatMenuId
+    ? chats.find((chat) => chat.id === chatMenuId) ?? null
+    : null;
+
   return (
-    <main className="appShell" onClick={() => chatMenuId && setChatMenuId(null)}>
+    <main className="appShell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brandRow">
           <div className="tensorMark">T</div>
           <div className="brandText">
             <strong>TENSORRA</strong>
-            <span>v0.10 · стабильность и файлы</span>
+            <span>v0.11 · premium UI</span>
           </div>
           <button
             className="iconButton mobileOnly"
@@ -709,25 +714,6 @@ export default function ChatApp() {
                 ⋯
               </button>
 
-              {chatMenuId === chat.id ? (
-                <div
-                  className="chatMenu"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <button onClick={() => void togglePinChat(chat)}>
-                    {chat.pinned_at ? "Открепить" : "Закрепить"}
-                  </button>
-                  <button onClick={() => void renameChat(chat)}>
-                    Переименовать
-                  </button>
-                  <button
-                    className="danger"
-                    onClick={() => void deleteChat(chat)}
-                  >
-                    Удалить
-                  </button>
-                </div>
-              ) : null}
             </div>
           ))}
         </div>
@@ -751,6 +737,66 @@ export default function ChatApp() {
           </button>
         </div>
       </aside>
+
+      {menuChat ? (
+        <div
+          className="chatActionLayer"
+          role="presentation"
+          onClick={() => setChatMenuId(null)}
+        >
+          <section
+            className="chatActionSheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Действия с чатом «${menuChat.title}»`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="chatActionHandle" />
+            <div className="chatActionHead">
+              <span>Действия с чатом</span>
+              <strong>{menuChat.title}</strong>
+            </div>
+
+            <button onClick={() => void togglePinChat(menuChat)}>
+              <span className="chatActionIcon">◇</span>
+              <span>
+                <strong>{menuChat.pinned_at ? "Открепить" : "Закрепить"}</strong>
+                <small>
+                  {menuChat.pinned_at
+                    ? "Вернуть чат в общий список"
+                    : "Оставить чат вверху списка"}
+                </small>
+              </span>
+            </button>
+
+            <button onClick={() => void renameChat(menuChat)}>
+              <span className="chatActionIcon">✎</span>
+              <span>
+                <strong>Переименовать</strong>
+                <small>Задать короткое название чата</small>
+              </span>
+            </button>
+
+            <button
+              className="danger"
+              onClick={() => void deleteChat(menuChat)}
+            >
+              <span className="chatActionIcon">⌫</span>
+              <span>
+                <strong>Удалить</strong>
+                <small>Удалить чат и его историю</small>
+              </span>
+            </button>
+
+            <button
+              className="chatActionCancel"
+              onClick={() => setChatMenuId(null)}
+            >
+              Отмена
+            </button>
+          </section>
+        </div>
+      ) : null}
 
       {sidebarOpen ? (
         <button
@@ -864,7 +910,13 @@ export default function ChatApp() {
                           : ""
                       }`}
                     >
-                      {message.content || (
+                      {message.content ? (
+                        message.role === "assistant" ? (
+                          <MessageContent content={message.content} />
+                        ) : (
+                          message.content
+                        )
+                      ) : (
                         message.role === "assistant" ? "Думаю" : ""
                       )}
                     </div>
