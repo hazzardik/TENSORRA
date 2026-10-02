@@ -1,7 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { Inter } from "next/font/google";
 import PwaRegister from "@/components/pwa-register";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: { default: "TENSORRA", template: "%s · TENSORRA" },
@@ -29,7 +36,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ru">
-      <body>
+      <body className={inter.variable}>
         <PwaRegister />
         {children}
       </body>
