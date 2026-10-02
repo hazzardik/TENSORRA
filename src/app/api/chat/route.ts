@@ -775,42 +775,43 @@ export async function POST(request: Request) {
           }
         }
 
-        if (!complete.trim()) {
-          controller.enqueue(
-            encoder.encode(
-              "Не удалось получить содержательный ответ. Попробуй отправить запрос ещё раз.",
-            ),
-          );
-        } else {
-          await saveAssistantMessage({
-            supabase,
-            userId,
-            chatId,
-            content: complete,
-            modelName: modelUsed,
-            requestedMode,
-            effectiveMode,
-            reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
-            verified: modelConfig.verify,
-            toolsEnabled: [],
-            routerReason: plan.reason,
-          });
+        const finalContent = complete.trim()
+          ? complete
+          : "Не удалось получить содержательный ответ. Попробуй отправить запрос ещё раз.";
 
-          await supabase.from("usage_events").insert({
-            user_id: userId,
-            chat_id: chatId,
-            event_type: "completion",
-            provider: "groq",
-            model_name: modelUsed,
-            latency_ms: Date.now() - startedAt,
-            metadata: {
-              requested_mode: requestedMode,
-              effective_mode: effectiveMode,
-              router_reason: plan.reason,
-              fallback: fellBack,
-            },
-          });
+        if (!complete.trim()) {
+          controller.enqueue(encoder.encode(finalContent));
         }
+
+        await saveAssistantMessage({
+          supabase,
+          userId,
+          chatId,
+          content: finalContent,
+          modelName: modelUsed,
+          requestedMode,
+          effectiveMode,
+          reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+          verified: modelConfig.verify,
+          toolsEnabled: [],
+          routerReason: plan.reason,
+        });
+
+        await supabase.from("usage_events").insert({
+          user_id: userId,
+          chat_id: chatId,
+          event_type: "completion",
+          provider: "groq",
+          model_name: modelUsed,
+          latency_ms: Date.now() - startedAt,
+          metadata: {
+            requested_mode: requestedMode,
+            effective_mode: effectiveMode,
+            router_reason: plan.reason,
+            fallback: fellBack,
+            empty_provider_response: !complete.trim(),
+          },
+        });
 
         if (plan.extractMemory && !explicitMemory) {
           await extractDurableMemories(message, explicitMemory, {
@@ -821,14 +822,47 @@ export async function POST(request: Request) {
         }
 
         controller.close();
-      } catch {
-        if (!complete.trim()) {
-          controller.enqueue(
-            encoder.encode(
-              "Соединение с моделью прервалось. Попробуй повторить запрос через несколько секунд.",
-            ),
-          );
-        }
+      } catch (error) {
+        const suffix = complete.trim()
+          ? "\n\n⚠️ Ответ модели прервался. Частичный ответ сохранён — можно повторить запрос."
+          : "⚠️ Соединение с моделью прервалось. Попробуй повторить запрос через несколько секунд.";
+        const interruptedContent = complete.trim()
+          ? `${complete}${suffix}`
+          : suffix;
+
+        controller.enqueue(encoder.encode(suffix));
+
+        await saveAssistantMessage({
+          supabase,
+          userId,
+          chatId,
+          content: interruptedContent,
+          modelName: modelUsed,
+          requestedMode,
+          effectiveMode,
+          reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+          verified: false,
+          toolsEnabled: [],
+          routerReason: [...plan.reason, "stream_interrupted"],
+        }).catch(() => undefined);
+
+        await supabase.from("usage_events").insert({
+          user_id: userId,
+          chat_id: chatId,
+          event_type: "completion_interrupted",
+          provider: "groq",
+          model_name: modelUsed,
+          latency_ms: Date.now() - startedAt,
+          metadata: {
+            requested_mode: requestedMode,
+            effective_mode: effectiveMode,
+            router_reason: plan.reason,
+            fallback: fellBack,
+            partial_chars: complete.length,
+            error: error instanceof Error ? error.message.slice(0, 500) : "stream_error",
+          },
+        }).catch(() => undefined);
+
         controller.close();
       } finally {
         reader.releaseLock();
