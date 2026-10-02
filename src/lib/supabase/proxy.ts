@@ -20,12 +20,16 @@ export async function updateSession(request: NextRequest) {
   );
 
   const path = request.nextUrl.pathname;
-  const protectedPath = path === "/app" || path.startsWith("/app/") || path.startsWith("/api/");
+  const protectedPage = path === "/app" || path.startsWith("/app/");
   const { data } = await supabase.auth.getClaims();
   const claims = data?.claims;
 
-  if (!claims && protectedPath) {
-    const url = request.nextUrl.clone(); url.pathname = "/login";
+  // API handlers must return their own JSON 401 responses. Redirecting /api/*
+  // to /login makes fetch() receive HTML with a 200 after redirect, which can
+  // surface as JSON parse errors in the chat/file upload client.
+  if (!claims && protectedPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
     return NextResponse.redirect(url);
   }
   if (claims && path === "/login") {
