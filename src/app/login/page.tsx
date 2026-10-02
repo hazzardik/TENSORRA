@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 function translateAuthError(message: string) {
@@ -30,7 +29,6 @@ function translateAuthError(message: string) {
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const [supabase] = useState(() => createClient());
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
@@ -45,18 +43,21 @@ export default function LoginPage() {
 
     try {
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (!data.session) {
+          throw new Error("Сессия не была создана после входа.");
+        }
 
-        router.replace("/app");
-        router.refresh();
+        // Hard navigation is intentional: it guarantees that the auth cookies
+        // written by @supabase/ssr are present on the first server request to /app.
+        window.location.assign("/app");
       } else {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
 
         if (data.session) {
-          router.replace("/app");
-          router.refresh();
+          window.location.assign("/app");
         } else {
           setStatus("Аккаунт создан. Подтвердите электронную почту по ссылке из письма, затем войдите.");
         }
