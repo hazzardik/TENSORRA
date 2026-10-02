@@ -13,10 +13,12 @@ export async function GET() {
   return Response.json(
     {
       service: "TENSORRA",
-      version: "0.8.0",
+      version: "0.9.0",
       status: ready ? "ready" : "configuration_required",
       checks: required,
       features: {
+        responsiveUI: true,
+        adaptiveComposer: true,
         smartRouter: true,
         chatManagement: true,
         autonomousWeb: true,
