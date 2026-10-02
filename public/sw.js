@@ -1,4 +1,4 @@
-const CACHE = "tensorra-shell-v010";
+const CACHE = "tensorra-shell-v011";
 const SHELL = ["/", "/offline", "/icons/tensorra.svg"];
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
