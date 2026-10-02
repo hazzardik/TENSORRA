@@ -115,6 +115,7 @@ export default function ChatApp() {
   const [chatMenuId, setChatMenuId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const attachInput = useRef<HTMLInputElement | null>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const loadChats = useCallback(async () => {
@@ -348,6 +349,7 @@ export default function ChatApp() {
       : undefined;
 
     setInput("");
+    if (composerInputRef.current) composerInputRef.current.style.height = "auto";
     setLoading(true);
     setNotice("");
 
@@ -616,7 +618,7 @@ export default function ChatApp() {
           <div className="tensorMark">T</div>
           <div className="brandText">
             <strong>TENSORRA</strong>
-            <span>v0.8 · умный роутер</span>
+            <span>v0.9 · адаптивный интерфейс</span>
           </div>
           <button
             className="iconButton mobileOnly"
@@ -937,8 +939,13 @@ export default function ChatApp() {
 
           <form className="composer" onSubmit={send}>
             <textarea
+              ref={composerInputRef}
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => {
+                setInput(event.target.value);
+                event.currentTarget.style.height = "auto";
+                event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 180)}px`;
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
