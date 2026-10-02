@@ -12,7 +12,7 @@ export default function LandingPage() {
 
         <div className="landingNavActions">
           <Link href="/login">Войти</Link>
-          <Link className="navPrimary" href="/app">Открыть TENSORRA</Link>
+          <Link className="navPrimary" href="/login">Открыть TENSORRA</Link>
         </div>
       </nav>
 
@@ -31,7 +31,7 @@ export default function LandingPage() {
         </p>
 
         <div className="landingCtas">
-          <Link className="heroPrimary" href="/app">Начать работу</Link>
+          <Link className="heroPrimary" href="/login">Начать работу</Link>
           <InstallAppButton />
         </div>
 
