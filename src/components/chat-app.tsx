@@ -758,7 +758,12 @@ export default function ChatApp() {
             </div>
 
             <button onClick={() => void togglePinChat(menuChat)}>
-              <span className="chatActionIcon">◇</span>
+              <span className="chatActionIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M8 4h8l-1.2 5 3.2 3v1H6v-1l3.2-3L8 4Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+                  <path d="M12 13v7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                </svg>
+              </span>
               <span>
                 <strong>{menuChat.pinned_at ? "Открепить" : "Закрепить"}</strong>
                 <small>
@@ -770,7 +775,12 @@ export default function ChatApp() {
             </button>
 
             <button onClick={() => void renameChat(menuChat)}>
-              <span className="chatActionIcon">✎</span>
+              <span className="chatActionIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M5 19h3.2L18.4 8.8a2.1 2.1 0 0 0-3-3L5.2 16 5 19Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+                  <path d="m13.8 7.4 2.8 2.8" stroke="currentColor" strokeWidth="1.6"/>
+                </svg>
+              </span>
               <span>
                 <strong>Переименовать</strong>
                 <small>Задать короткое название чата</small>
@@ -781,7 +791,11 @@ export default function ChatApp() {
               className="danger"
               onClick={() => void deleteChat(menuChat)}
             >
-              <span className="chatActionIcon">⌫</span>
+              <span className="chatActionIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M7 8h10m-8.5 0 .7 11h5.6l.7-11M9.5 8V5.8h5V8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </span>
               <span>
                 <strong>Удалить</strong>
                 <small>Удалить чат и его историю</small>
