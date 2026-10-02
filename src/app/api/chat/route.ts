@@ -846,22 +846,26 @@ export async function POST(request: Request) {
           routerReason: [...plan.reason, "stream_interrupted"],
         }).catch(() => undefined);
 
-        await supabase.from("usage_events").insert({
-          user_id: userId,
-          chat_id: chatId,
-          event_type: "completion_interrupted",
-          provider: "groq",
-          model_name: modelUsed,
-          latency_ms: Date.now() - startedAt,
-          metadata: {
-            requested_mode: requestedMode,
-            effective_mode: effectiveMode,
-            router_reason: plan.reason,
-            fallback: fellBack,
-            partial_chars: complete.length,
-            error: error instanceof Error ? error.message.slice(0, 500) : "stream_error",
-          },
-        }).catch(() => undefined);
+        try {
+          await supabase.from("usage_events").insert({
+            user_id: userId,
+            chat_id: chatId,
+            event_type: "completion_interrupted",
+            provider: "groq",
+            model_name: modelUsed,
+            latency_ms: Date.now() - startedAt,
+            metadata: {
+              requested_mode: requestedMode,
+              effective_mode: effectiveMode,
+              router_reason: plan.reason,
+              fallback: fellBack,
+              partial_chars: complete.length,
+              error: error instanceof Error ? error.message.slice(0, 500) : "stream_error",
+            },
+          });
+        } catch {
+          // Ошибка телеметрии не должна ломать восстановление пользовательского ответа.
+        }
 
         controller.close();
       } finally {
