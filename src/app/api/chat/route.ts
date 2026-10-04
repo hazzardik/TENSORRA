@@ -1222,7 +1222,6 @@ export async function POST(request: Request) {
             retried,
             complexity_score: plan.complexityScore,
             billing_plan: billingPlan,
-        billing_plan: billingPlan,
             empty_provider_response: !complete.trim(),
           },
         });
