@@ -378,6 +378,10 @@ async function saveAssistantMessage(args: {
   fellBack?: boolean;
   retried?: boolean;
   complexityScore?: number;
+  plannerUsed?: boolean;
+  contextSummaryUsed?: boolean;
+  verifierUsed?: boolean;
+  verifierRevised?: boolean;
   sources?: ResearchSource[];
 }) {
   await args.supabase.from("messages").insert({
@@ -396,6 +400,10 @@ async function saveAssistantMessage(args: {
       fallback: Boolean(args.fellBack),
       retried: Boolean(args.retried),
       complexity_score: args.complexityScore ?? null,
+      planner_used: Boolean(args.plannerUsed),
+      context_summary_used: Boolean(args.contextSummaryUsed),
+      verifier_used: Boolean(args.verifierUsed),
+      verifier_revised: Boolean(args.verifierRevised),
       sources: args.sources ?? [],
     },
   });
@@ -915,6 +923,10 @@ export async function POST(request: Request) {
       fellBack,
       retried,
       complexityScore: plan.complexityScore,
+      plannerUsed: Boolean(planningBrief),
+      contextSummaryUsed: Boolean(contextSummary),
+      verifierUsed: effectiveMode === "max",
+      verifierRevised,
       sources,
     });
 
@@ -1048,6 +1060,10 @@ export async function POST(request: Request) {
       fellBack,
       retried,
       complexityScore: plan.complexityScore,
+      plannerUsed: Boolean(planningBrief),
+      contextSummaryUsed: Boolean(contextSummary),
+      verifierUsed: true,
+      verifierRevised: verificationResult.revised,
     });
 
     await supabase.from("usage_events").insert({
@@ -1172,6 +1188,8 @@ export async function POST(request: Request) {
           fellBack,
           retried,
           complexityScore: plan.complexityScore,
+          plannerUsed: Boolean(planningBrief),
+          contextSummaryUsed: Boolean(contextSummary),
         });
 
         await supabase.from("usage_events").insert({
@@ -1226,6 +1244,8 @@ export async function POST(request: Request) {
           fellBack,
           retried,
           complexityScore: plan.complexityScore,
+          plannerUsed: Boolean(planningBrief),
+          contextSummaryUsed: Boolean(contextSummary),
         }).catch(() => undefined);
 
         try {
