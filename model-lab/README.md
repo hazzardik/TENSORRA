@@ -14,15 +14,28 @@ Convert an admin JSONL export into a conversational SFT dataset:
 python model-lab/prepare_sft.py raw_feedback.jsonl tensorra_sft.jsonl
 ```
 
-Rules in the starter:
+Current curation rules:
 - positive examples are kept;
 - negative answers are excluded unless a human correction exists;
 - empty/broken rows are discarded;
+- obvious emails, phone numbers, bearer tokens, API keys and password-like secrets are redacted;
+- duplicate prompt/answer pairs are removed;
 - output stays human-reviewable JSONL.
 
-Before real training, add stronger PII/secrets filtering and manual quality review.
+You can also create a deterministic held-out evaluation split:
+
+```bash
+python model-lab/prepare_sft.py raw_feedback.jsonl tensorra_train.jsonl \
+  --eval-output tensorra_eval.jsonl --eval-ratio 0.05
+```
+
+Before real training, still perform manual quality review and a stronger privacy audit. Automated redaction is a guardrail, not a guarantee.
 
 ## Phase 3 — fine-tune
+
+Do not jump to training until the held-out eval set is large enough to measure regressions. TENSORRA's product kernel (routing, memory, tools, RAG, safety and telemetry) should remain independently testable from the model checkpoint.
+
+
 
 Target checkpoint: `openai/gpt-oss-20b` first. The model is fine-tunable and supports configurable low/medium/high reasoning. Use the official OpenAI/Hugging Face training guidance current at training time; do not freeze a stale library recipe in the product repo.
 
