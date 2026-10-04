@@ -35,6 +35,8 @@ type Message = {
     reasoning_effort?: "low" | "medium" | "high";
     verified?: boolean;
     fallback?: boolean;
+    retried?: boolean;
+    complexity_score?: number | null;
   } | null;
 };
 
@@ -491,6 +493,11 @@ export default function ChatApp() {
       const effectiveMode = response.headers.get("X-Tensorra-Mode") as ThinkingMode | null;
       const responseModel = response.headers.get("X-Tensorra-Model");
       const fellBack = response.headers.get("X-Tensorra-Fallback") === "1";
+      const retried = response.headers.get("X-Tensorra-Retry") === "1";
+      const complexityHeader = response.headers.get("X-Tensorra-Complexity");
+      const complexityScore = complexityHeader === null
+        ? null
+        : Number(complexityHeader);
 
       setMessages((current) => {
         const copy = [...current];
@@ -504,6 +511,10 @@ export default function ChatApp() {
               requested_mode: requestedMode,
               effective_mode: effectiveMode ?? requestedMode,
               fallback: fellBack,
+              retried,
+              complexity_score: Number.isFinite(complexityScore)
+                ? complexityScore
+                : null,
             },
           };
         }
@@ -950,7 +961,19 @@ export default function ChatApp() {
                     <div className="messageLabel">
                       <span>{message.role === "assistant" ? "TENSORRA" : "ВЫ"}</span>
                       {message.role === "assistant" && message.metadata?.effective_mode ? (
-                        <span className="responseMode">
+                        <span
+                          className="responseMode"
+                          title={[
+                            message.metadata.requested_mode === "auto"
+                              ? "Режим выбран ядром автоматически"
+                              : "Режим выбран вручную",
+                            typeof message.metadata.complexity_score === "number"
+                              ? `оценка сложности: ${message.metadata.complexity_score}`
+                              : "",
+                            message.metadata.retried ? "провайдер: повторный запрос" : "",
+                          ].filter(Boolean).join(" · ")}
+                        >
+                          {message.metadata.requested_mode === "auto" ? "Авто→" : ""}
                           {thinkingModeLabel(message.metadata.effective_mode)}
                           {modelLabel(message.model_name) ? ` · ${modelLabel(message.model_name)}` : ""}
                           {message.metadata.fallback ? " · резерв" : ""}
