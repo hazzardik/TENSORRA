@@ -8,14 +8,19 @@ import {
 } from "@/lib/tensorra/model-router";
 import { planRequest } from "@/lib/tensorra/request-router";
 import {
+  buildConversationSummaryPrompt,
   buildMemoryExtractionPrompt,
+  buildPlanningPrompt,
+  buildPostVerificationPrompt,
+  buildRevisionPrompt,
   buildSystemPrompt,
-  buildVerificationPrompt,
 } from "@/lib/tensorra/prompt";
 import {
-  createVerificationBrief,
+  createConversationSummary,
+  createPlanningBrief,
   extractMemoriesWithModel,
   providerConfig,
+  verifyAndReviseAnswer,
 } from "@/lib/tensorra/provider";
 import {
   searchKnowledge,
@@ -29,7 +34,13 @@ export const dynamic = "force-dynamic";
 
 type StoredMessage = { role: "user" | "assistant"; content: string };
 type ProviderChunk = { choices?: Array<{ delta?: { content?: string | null } }> };
-type MemoryItem = { content: string; category?: string | null };
+type MemoryItem = {
+  content: string;
+  category?: string | null;
+  importance?: number | null;
+  score?: number | null;
+  createdAt?: string | null;
+};
 type KnowledgeItem = { content: string; filename?: string | null; score?: number | null };
 type DocumentChunk = { document_id: string; content: string; chunk_index: number };
 
@@ -55,27 +66,85 @@ async function loadRelevantMemories(
   userId: string,
   query: string,
 ): Promise<MemoryItem[]> {
-  const semantic = await searchSemanticMemories(userId, query, 8).catch(() => []);
+  const semantic = await searchSemanticMemories(userId, query, 12).catch(() => []);
   const { data: recent } = await supabase
     .from("memories")
-    .select("content,category")
+    .select("content,category,importance,created_at")
     .eq("user_id", userId)
     .order("importance", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(8);
+    .limit(12);
 
   const combined: MemoryItem[] = [
-    ...semantic.map((item) => ({ content: item.content, category: item.category })),
-    ...((recent ?? []) as MemoryItem[]),
+    ...semantic.map((item) => ({
+      content: item.content,
+      category: item.category,
+      importance: item.importance,
+      score: item.score,
+      createdAt: item.createdAt,
+    })),
+    ...((recent ?? []).map((item: {
+      content: string;
+      category?: string | null;
+      importance?: number | null;
+      created_at?: string | null;
+    }) => ({
+      content: item.content,
+      category: item.category,
+      importance: item.importance,
+      score: 0,
+      createdAt: item.created_at,
+    }))),
   ];
 
-  const seen = new Set<string>();
-  return combined.filter((item) => {
+  const merged = new Map<string, MemoryItem>();
+  for (const item of combined) {
     const key = item.content.toLocaleLowerCase().trim();
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  }).slice(0, 8);
+    if (!key) continue;
+
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, item);
+      continue;
+    }
+
+    merged.set(key, {
+      ...existing,
+      importance: Math.max(existing.importance ?? 0, item.importance ?? 0),
+      score: Math.max(existing.score ?? 0, item.score ?? 0),
+      createdAt: existing.createdAt ?? item.createdAt,
+    });
+  }
+
+  const now = Date.now();
+  const ranked = [...merged.values()]
+    .map((item) => {
+      const ageDays = item.createdAt
+        ? Math.max(0, (now - new Date(item.createdAt).getTime()) / 86_400_000)
+        : 365;
+      const recency = ageDays <= 7 ? 0.8 : ageDays <= 30 ? 0.4 : 0;
+      const explicitBoost = item.category === "explicit" ? 1.1 : 0;
+      const priority =
+        (item.score ?? 0) * 5 +
+        Math.min(10, Math.max(1, item.importance ?? 5)) * 0.45 +
+        recency +
+        explicitBoost;
+      return { item, priority };
+    })
+    .sort((a, b) => b.priority - a.priority);
+
+  const result: MemoryItem[] = [];
+  let chars = 0;
+  for (const { item } of ranked) {
+    if (result.length >= 7 || chars >= 3200) break;
+    const remaining = 3200 - chars;
+    const content = item.content.slice(0, remaining).trim();
+    if (!content) continue;
+    result.push({ ...item, content });
+    chars += content.length;
+  }
+
+  return result;
 }
 
 async function loadRelevantKnowledge(
@@ -220,6 +289,42 @@ function trimConversation(messages: StoredMessage[], maxChars = 6500) {
   }
 
   return result;
+}
+
+
+function contextBudgetForMode(mode: ConcreteThinkingMode) {
+  if (mode === "fast") return 5200;
+  if (mode === "balanced") return 8200;
+  if (mode === "deep") return 12500;
+  return 16500;
+}
+
+function partitionConversation(
+  messages: StoredMessage[],
+  recentBudget: number,
+) {
+  let used = 0;
+  let start = messages.length;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const length = messages[index].content.length;
+    if (used + length > recentBudget && start < messages.length) break;
+    used += Math.min(length, Math.max(0, recentBudget - used));
+    start = index;
+    if (used >= recentBudget) break;
+  }
+
+  const recent = trimConversation(messages.slice(start), recentBudget);
+  const older = messages.slice(0, start);
+  return { older, recent };
+}
+
+function fallbackConversationSummary(messages: StoredMessage[]) {
+  return messages
+    .slice(-8)
+    .map((item) => `${item.role}: ${item.content.slice(0, 450)}`)
+    .join("\n")
+    .slice(0, 3600);
 }
 
 async function saveMemory(
