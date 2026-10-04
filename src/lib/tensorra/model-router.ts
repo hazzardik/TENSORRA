@@ -90,24 +90,117 @@ export function thinkingInstructionForMode(mode: ConcreteThinkingMode) {
   ].join(" ");
 }
 
-export function resolveAutoThinkingMode(message: string): ConcreteThinkingMode {
+export type AutoThinkingDecision = {
+  mode: ConcreteThinkingMode;
+  score: number;
+  reasons: string[];
+};
+
+const includesAny = (text: string, signals: string[]) =>
+  signals.some((signal) => text.includes(signal));
+
+export function resolveAutoThinkingDecision(
+  message: string,
+  options?: { hasAttachment?: boolean; vision?: boolean },
+): AutoThinkingDecision {
   const text = message.toLocaleLowerCase();
   const length = message.length;
+  let score = 0;
+  const reasons: string[] = [];
+
+  if (length > 700) {
+    score += 1;
+    reasons.push("long");
+  }
+  if (length > 1800) {
+    score += 2;
+    reasons.push("very-long");
+  }
+  if (length > 4200) {
+    score += 2;
+    reasons.push("large-context");
+  }
+
+  const analysisSignals = [
+    "сравни", "проанализируй", "разбери", "почему", "обоснуй", "докажи",
+    "стратег", "архитект", "спроектируй", "разработай", "риски", "trade-off",
+    "compare", "analyze", "why", "strategy", "architecture", "design", "prove",
+  ];
+  if (includesAny(text, analysisSignals)) {
+    score += 2;
+    reasons.push("analysis");
+  }
+
+  const technicalSignals = [
+    "код", "ошибка", "debug", "уязвим", "security", "математ", "алгоритм",
+    "формула", "статистик", "данные", "api", "database", "sql", "typescript",
+    "python", "javascript", "react", "next.js",
+  ];
+  if (includesAny(text, technicalSignals)) {
+    score += 2;
+    reasons.push("technical");
+  }
+
+  const verificationSignals = [
+    "проверь", "перепроверь", "точно", "критически", "контраргумент",
+    "исследование", "research", "verify", "fact-check", "rigorous", "максимально подробно",
+  ];
+  if (includesAny(text, verificationSignals)) {
+    score += 2;
+    reasons.push("verification");
+  }
+
+  const multiStepSignals = [
+    "пошагово", "план действий", "несколько вариантов", "варианты решения",
+    "плюсы и минусы", "этапы", "roadmap", "step by step", "pros and cons",
+  ];
+  if (includesAny(text, multiStepSignals)) {
+    score += 2;
+    reasons.push("multi-step");
+  }
+
+  const questionCount = (message.match(/[?？]/g) ?? []).length;
+  if (questionCount >= 3) {
+    score += 1;
+    reasons.push("multi-question");
+  }
+
+  if (options?.hasAttachment) {
+    score += 2;
+    reasons.push("attachment");
+  }
+  if (options?.vision) {
+    score += 1;
+    reasons.push("vision");
+  }
+
+  const fastSignals = [
+    "кратко", "коротко", "быстро", "одним словом", "переведи", "что значит",
+    "brief", "short answer", "translate",
+  ];
+  if (length < 320 && includesAny(text, fastSignals)) {
+    score -= 3;
+    reasons.push("explicit-fast");
+  }
 
   const maxSignals = [
-    "глубоко", "максимально подробно", "исследуй", "исследование", "архитектур", "докажи",
-    "проанализируй полностью", "deep research", "rigorous", "prove", "design the architecture",
+    "максимум", "максимально глубоко", "глубокое исследование", "deep research",
+    "проанализируй полностью", "design the architecture",
   ];
-  if (length > 4500 || maxSignals.some((signal) => text.includes(signal))) return "max";
+  if (includesAny(text, maxSignals)) {
+    score += 4;
+    reasons.push("max-signal");
+  }
 
-  const deepSignals = [
-    "сравни", "проанализируй", "почему", "код", "ошибка", "уязвим", "математ", "алгоритм",
-    "latest", "сейчас", "сегодня", "актуаль", "compare", "analyze", "debug", "security", "research",
-  ];
-  if (length > 1400 || deepSignals.some((signal) => text.includes(signal))) return "deep";
+  const mode: ConcreteThinkingMode =
+    score <= -1 ? "fast" :
+    score <= 2 ? "balanced" :
+    score <= 6 ? "deep" :
+    "max";
 
-  const fastSignals = ["кратко", "быстро", "одним словом", "переведи", "что значит", "коротко", "brief", "translate"];
-  if (length < 260 && fastSignals.some((signal) => text.includes(signal))) return "fast";
+  return { mode, score, reasons };
+}
 
-  return "balanced";
+export function resolveAutoThinkingMode(message: string): ConcreteThinkingMode {
+  return resolveAutoThinkingDecision(message).mode;
 }
