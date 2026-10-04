@@ -707,7 +707,7 @@ export default function ChatApp() {
           <div className="tensorMark">T</div>
           <div className="brandText">
             <strong>TENSORRA</strong>
-            <span>v0.11 · premium UI</span>
+            <span>v0.12 · reasoning + desktop</span>
           </div>
           <button
             className="iconButton mobileOnly"
@@ -881,7 +881,7 @@ export default function ChatApp() {
 
           <div>
             <strong>TENSORRA</strong>
-            <span className="statusText">контекст · рассуждение · память</span>
+            <span className="statusText">{MODES.find((mode) => mode.id === thinkingMode)?.hint}</span>
           </div>
 
           <div className="modeSwitcher" aria-label="Режим мышления">
@@ -904,12 +904,11 @@ export default function ChatApp() {
           {messages.length === 0 ? (
             <section className="hero">
               <div className="heroMark">T</div>
-              <p className="eyebrow">ЯДРО TENSORRA</p>
-              <h1>TENSORRA сама выбирает, что ей нужно.</h1>
+              <p className="eyebrow">TENSORRA</p>
+              <h1>Что будем решать?</h1>
               <p className="heroSub">
-                Прикрепляй PDF или изображения, задавай вопросы о свежих данных,
-                расчётах или прошлых обсуждениях. Память, веб, код и анализ изображений
-                подключаются автоматически.
+                Задай вопрос, прикрепи файл или выбери нужную глубину мышления.
+                Память, веб, вычисления и анализ файлов подключатся автоматически.
               </p>
 
               <div className="suggestions">
@@ -918,14 +917,14 @@ export default function ChatApp() {
                     setInput("Какие важные события в сфере ИИ произошли сегодня?")
                   }
                 >
-                  Узнать актуальную информацию
+                  Найти свежие данные
                 </button>
                 <button
                   onClick={() =>
                     setInput("Разбери эту проблему глубоко и предложи план действий.")
                   }
                 >
-                  Глубоко разобрать задачу
+                  Разобрать сложную задачу
                 </button>
                 <button onClick={() => attachInput.current?.click()}>
                   Прикрепить PDF или изображение
