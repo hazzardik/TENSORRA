@@ -1,0 +1,8 @@
+# Install in a dedicated CUDA training environment.
+# Keep these current with the official gpt-oss / TRL recipes.
+torch
+transformers
+datasets
+accelerate
+trl
+peft
