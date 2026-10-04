@@ -18,32 +18,32 @@ export const THINKING_MODES: Record<ConcreteThinkingMode, ModelConfig> = {
     label: "Fast",
     model: FAST_MODEL,
     reasoningEffort: "low",
-    maxCompletionTokens: 1600,
-    temperature: 0.55,
+    maxCompletionTokens: 1200,
+    temperature: 0.62,
     verify: false,
   },
   balanced: {
     label: "Balanced",
     model: FAST_MODEL,
     reasoningEffort: "medium",
-    maxCompletionTokens: 2400,
-    temperature: 0.6,
+    maxCompletionTokens: 2600,
+    temperature: 0.56,
     verify: false,
   },
   deep: {
     label: "Deep",
     model: DEEP_MODEL,
-    reasoningEffort: "medium",
-    maxCompletionTokens: 3200,
-    temperature: 0.52,
+    reasoningEffort: "high",
+    maxCompletionTokens: 4600,
+    temperature: 0.48,
     verify: false,
   },
   max: {
     label: "Max",
     model: DEEP_MODEL,
     reasoningEffort: "high",
-    maxCompletionTokens: 4000,
-    temperature: 0.48,
+    maxCompletionTokens: 6500,
+    temperature: 0.42,
     verify: true,
   },
 };
@@ -53,6 +53,41 @@ export function normalizeThinkingMode(value: unknown): ThinkingMode {
     return value;
   }
   return "auto";
+}
+
+
+export function thinkingInstructionForMode(mode: ConcreteThinkingMode) {
+  if (mode === "fast") {
+    return [
+      "Thinking profile: FAST.",
+      "Answer directly and efficiently. Prefer a short, useful answer over exhaustive coverage.",
+      "Do not skip necessary facts, but avoid unnecessary branches, long caveats, or broad exploration.",
+    ].join(" ");
+  }
+
+  if (mode === "balanced") {
+    return [
+      "Thinking profile: BALANCED.",
+      "Reason carefully, identify the main trade-offs, and give a practical structured answer.",
+      "Cover the important alternatives without turning the response into an exhaustive research report.",
+    ].join(" ");
+  }
+
+  if (mode === "deep") {
+    return [
+      "Thinking profile: DEEP.",
+      "Analyze the problem from multiple angles. Challenge weak assumptions, surface meaningful trade-offs, failure modes, and alternatives.",
+      "Give a structured answer with stronger justification and more depth than BALANCED.",
+      "Do not reveal private chain-of-thought; provide conclusions and concise supporting rationale instead.",
+    ].join(" ");
+  }
+
+  return [
+    "Thinking profile: MAXIMUM.",
+    "Use a rigorous multi-pass approach before answering. Check assumptions, compare alternatives, consider counterarguments, edge cases, risks, and verification needs.",
+    "Prefer completeness and robustness over speed, while keeping the final response organized and readable.",
+    "Do not reveal private chain-of-thought; provide conclusions, evidence, checks, and concise rationale instead.",
+  ].join(" ");
 }
 
 export function resolveAutoThinkingMode(message: string): ConcreteThinkingMode {
