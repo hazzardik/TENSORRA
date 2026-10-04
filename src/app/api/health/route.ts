@@ -5,7 +5,11 @@ export async function GET() {
   const required = {
     supabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
     supabaseKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
-    aiKey: Boolean(process.env.GROQ_API_KEY ?? process.env.AI_API_KEY),
+    aiKey: Boolean(
+      process.env.TENSORRA_MODEL_API_KEY ??
+      process.env.GROQ_API_KEY ??
+      process.env.AI_API_KEY
+    ),
   };
 
   const ready = Object.values(required).every(Boolean);
