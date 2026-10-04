@@ -12,7 +12,6 @@ import {
   buildMemoryExtractionPrompt,
   buildPlanningPrompt,
   buildPostVerificationPrompt,
-  buildRevisionPrompt,
   buildSystemPrompt,
 } from "@/lib/tensorra/prompt";
 import {
@@ -985,6 +984,117 @@ export async function POST(request: Request) {
         "X-Tensorra-Planner": planningBrief ? "1" : "0",
         "X-Tensorra-Verified": postVerified ? "1" : "0",
         "X-Tensorra-Revised": verifierRevised ? "1" : "0",
+      },
+    });
+  }
+
+  if (effectiveMode === "max") {
+    const {
+      response: upstream,
+      modelUsed,
+      fellBack,
+      retried,
+    } = await providerFetch({
+      baseUrl: provider.baseUrl,
+      apiKey: provider.apiKey,
+      payload: { ...basePayload, stream: false },
+      signal: request.signal,
+    });
+
+    if (!upstream.ok) return providerError(upstream);
+
+    const data = await upstream.json().catch(() => null) as {
+      choices?: Array<{ message?: { content?: string | null } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    } | null;
+
+    const draft = data?.choices?.[0]?.message?.content?.trim() ?? "";
+    if (!draft) {
+      return new Response("Модель вернула пустой ответ.", { status: 502 });
+    }
+
+    const verificationResult = await verifyAndReviseAnswer({
+      verificationPrompt: buildPostVerificationPrompt({
+        userMessage: message,
+        draft,
+        recentContext,
+      }),
+      userMessage: message,
+      systemPrompt,
+      config: modelConfig,
+      draft,
+      signal: request.signal,
+    }).catch(() => ({
+      answer: draft,
+      verification: "",
+      verified: false,
+      revised: false,
+    }));
+
+    const finalAnswer = verificationResult.answer;
+
+    await saveAssistantMessage({
+      supabase,
+      userId,
+      chatId,
+      content: finalAnswer,
+      modelName: modelUsed,
+      requestedMode,
+      effectiveMode,
+      reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+      verified: verificationResult.verified,
+      toolsEnabled: [],
+      routerReason: plan.reason,
+      fellBack,
+      retried,
+      complexityScore: plan.complexityScore,
+    });
+
+    await supabase.from("usage_events").insert({
+      user_id: userId,
+      chat_id: chatId,
+      event_type: "completion",
+      provider: "groq",
+      model_name: modelUsed,
+      input_tokens: data?.usage?.prompt_tokens ?? null,
+      output_tokens: data?.usage?.completion_tokens ?? null,
+      latency_ms: Date.now() - startedAt,
+      metadata: {
+        requested_mode: requestedMode,
+        effective_mode: effectiveMode,
+        router_reason: plan.reason,
+        fallback: fellBack,
+        retried,
+        complexity_score: plan.complexityScore,
+        planner_used: Boolean(planningBrief),
+        context_summary_used: Boolean(contextSummary),
+        verifier_used: true,
+        verifier_revised: verificationResult.revised,
+        verified: verificationResult.verified,
+      },
+    });
+
+    if (plan.extractMemory && !explicitMemory) {
+      await extractDurableMemories(message, explicitMemory, {
+        supabase,
+        userId,
+        chatId,
+      });
+    }
+
+    return new Response(responseStreamFromText(finalAnswer), {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+        "X-Tensorra-Mode": effectiveMode,
+        "X-Tensorra-Model": modelUsed,
+        "X-Tensorra-Fallback": fellBack ? "1" : "0",
+        "X-Tensorra-Retry": retried ? "1" : "0",
+        "X-Tensorra-Complexity": String(plan.complexityScore),
+        "X-Tensorra-Planner": planningBrief ? "1" : "0",
+        "X-Tensorra-Verified": verificationResult.verified ? "1" : "0",
+        "X-Tensorra-Revised": verificationResult.revised ? "1" : "0",
       },
     });
   }
