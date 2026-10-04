@@ -4,6 +4,10 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { ThinkingMode } from "@/lib/tensorra/model-router";
+import {
+  planDefinition,
+  type TensorraPlanId,
+} from "@/lib/tensorra/plans";
 import InstallAppButton from "./install-app-button";
 import MessageContent from "./message-content";
 
@@ -132,6 +136,8 @@ export default function ChatApp() {
   const [panel, setPanel] = useState<"none" | "memory">("none");
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>("auto");
   const [allowTraining, setAllowTraining] = useState(false);
+  const [accountPlan, setAccountPlan] = useState<TensorraPlanId>("free");
+  const [subscriptionStatus, setSubscriptionStatus] = useState("active");
   const [feedback, setFeedback] = useState<Record<string, -1 | 1>>({});
   const [listening, setListening] = useState(false);
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -184,13 +190,25 @@ export default function ChatApp() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) return;
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("allow_training")
-        .eq("id", userData.user.id)
-        .maybeSingle();
+      const [{ data: profile }, { data: subscription }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("allow_training")
+          .eq("id", userData.user.id)
+          .maybeSingle(),
+        supabase
+          .from("subscriptions")
+          .select("plan,status")
+          .eq("user_id", userData.user.id)
+          .maybeSingle(),
+      ]);
 
-      if (data) setAllowTraining(Boolean(data.allow_training));
+      if (profile) setAllowTraining(Boolean(profile.allow_training));
+      if (subscription) {
+        const resolved = planDefinition(subscription.plan);
+        setAccountPlan(resolved.id);
+        setSubscriptionStatus(subscription.status || "active");
+      }
     })();
   }, [loadChats, supabase]);
 
@@ -728,7 +746,7 @@ export default function ChatApp() {
           <div className="tensorMark">T</div>
           <div className="brandText">
             <strong>TENSORRA</strong>
-            <span>v0.14 · Core v1</span>
+            <span>v0.15 · Core + plans</span>
           </div>
           <button
             className="iconButton mobileOnly"
@@ -795,6 +813,11 @@ export default function ChatApp() {
         <div className="sidebarFooter">
           <div className="memoryHint">
             <span className="dot" /> Память · файлы · веб · код — автоматически
+          </div>
+
+          <div className="accountPlanBadge" title="Текущий уровень доступа">
+            <span>{planDefinition(accountPlan).shortLabel}</span>
+            <strong>Core v1</strong>
           </div>
 
           <button
@@ -936,24 +959,77 @@ export default function ChatApp() {
                 Память, веб, вычисления и анализ файлов подключатся автоматически.
               </p>
 
-              <div className="suggestions">
-                <button
-                  onClick={() =>
-                    setInput("Какие важные события в сфере ИИ произошли сегодня?")
-                  }
-                >
-                  Найти свежие данные
-                </button>
-                <button
-                  onClick={() =>
-                    setInput("Разбери эту проблему глубоко и предложи план действий.")
-                  }
-                >
-                  Разобрать сложную задачу
-                </button>
-                <button onClick={() => attachInput.current?.click()}>
-                  Прикрепить PDF или изображение
-                </button>
+              <div className="heroWorkbench">
+                <div className="suggestions">
+                  <button
+                    onClick={() =>
+                      setInput("Какие важные события в сфере ИИ произошли сегодня?")
+                    }
+                  >
+                    <span className="suggestionKicker">WEB</span>
+                    <strong>Найти свежие данные</strong>
+                    <small>Актуальные источники и проверка фактов</small>
+                  </button>
+                  <button
+                    onClick={() =>
+                      setInput("Разбери эту проблему глубоко и предложи план действий.")
+                    }
+                  >
+                    <span className="suggestionKicker">REASON</span>
+                    <strong>Разобрать сложную задачу</strong>
+                    <small>Planner, глубокий анализ и вывод</small>
+                  </button>
+                  <button
+                    className="wideSuggestion"
+                    onClick={() => attachInput.current?.click()}
+                  >
+                    <span className="suggestionKicker">FILES</span>
+                    <strong>Прикрепить PDF или изображение</strong>
+                    <small>RAG, Vision и работа с содержимым файла</small>
+                  </button>
+                </div>
+
+                <aside className="coreStatusCard" aria-label="Состояние ядра TENSORRA">
+                  <div className="coreStatusHead">
+                    <div>
+                      <span className="coreLive"><i /> CORE V1</span>
+                      <strong>Ядро готово к задаче</strong>
+                    </div>
+                    <span className="corePlan">{planDefinition(accountPlan).shortLabel}</span>
+                  </div>
+
+                  <div className="coreStatusGrid">
+                    <div>
+                      <span>Режим</span>
+                      <strong>{MODES.find((mode) => mode.id === thinkingMode)?.label}</strong>
+                    </div>
+                    <div>
+                      <span>Память</span>
+                      <strong>Приоритетная</strong>
+                    </div>
+                    <div>
+                      <span>Инструменты</span>
+                      <strong>Автовыбор</strong>
+                    </div>
+                    <div>
+                      <span>Verifier</span>
+                      <strong>{thinkingMode === "max" ? "Включён" : "По режиму"}</strong>
+                    </div>
+                  </div>
+
+                  <div className="corePipeline" aria-hidden="true">
+                    <span>Router</span><i>→</i>
+                    <span>Planner</span><i>→</i>
+                    <span>Model</span><i>→</i>
+                    <span>Verify</span>
+                  </div>
+
+                  <p>
+                    {subscriptionStatus === "active"
+                      ? "Память, файлы, веб и вычисления подключаются только когда нужны."
+                      : "Доступ к функциям зависит от состояния подписки."}
+                  </p>
+                </aside>
               </div>
             </section>
           ) : (
