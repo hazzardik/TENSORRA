@@ -1,4 +1,5 @@
 import { ModelConfig } from "./model-router";
+import { buildRevisionPrompt } from "./prompt";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
@@ -162,7 +163,7 @@ export async function createConversationSummary(
 
 export async function verifyAndReviseAnswer(args: {
   verificationPrompt: string;
-  revisionPrompt: string;
+  userMessage: string;
   systemPrompt: string;
   config: ModelConfig;
   draft: string;
@@ -232,7 +233,14 @@ export async function verifyAndReviseAnswer(args: {
       include_reasoning: false,
       messages: [
         { role: "system", content: args.systemPrompt },
-        { role: "user", content: args.revisionPrompt },
+        {
+          role: "user",
+          content: buildRevisionPrompt({
+            userMessage: args.userMessage,
+            draft: args.draft,
+            verification,
+          }),
+        },
       ],
     }),
     cache: "no-store",
