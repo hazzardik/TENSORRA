@@ -314,6 +314,8 @@ async function providerFetch(args: {
   payload: Record<string, unknown>;
   signal: AbortSignal;
 }) {
+  const retryableStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
+
   const run = (payload: Record<string, unknown>) =>
     fetch(`${args.baseUrl}/chat/completions`, {
       method: "POST",
@@ -326,20 +328,17 @@ async function providerFetch(args: {
       signal: args.signal,
     });
 
-  let response = await run(args.payload);
-  let modelUsed = String(args.payload.model ?? "");
+  const pauseForRetry = async (response?: Response) => {
+    const retryAfter = Number(response?.headers.get("retry-after") ?? "0");
+    const delay =
+      Number.isFinite(retryAfter) && retryAfter > 0 && retryAfter <= 2
+        ? retryAfter * 1000
+        : 650;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  };
 
-  if (response.status !== 429) return { response, modelUsed, fellBack: false };
-
-  const retryAfter = Number(response.headers.get("retry-after") ?? "0");
-  await response.text().catch(() => "");
-  if (Number.isFinite(retryAfter) && retryAfter > 0 && retryAfter <= 2) {
-    await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
-  } else {
-    await new Promise((resolve) => setTimeout(resolve, 700));
-  }
-
-  const fallbackModel = process.env.TENSORRA_FAST_MODEL ?? "openai/gpt-oss-20b";
+  const fallbackModel =
+    process.env.TENSORRA_FAST_MODEL ?? "openai/gpt-oss-20b";
   const fallbackPayload = {
     ...args.payload,
     model: fallbackModel,
@@ -350,9 +349,61 @@ async function providerFetch(args: {
     ),
   };
 
+  let modelUsed = String(args.payload.model ?? "");
+  let retried = false;
+
+  let response: Response;
+  try {
+    response = await run(args.payload);
+  } catch (error) {
+    if (args.signal.aborted) throw error;
+
+    const fallback = await run(fallbackPayload);
+    return {
+      response: fallback,
+      modelUsed: fallbackModel,
+      fellBack: true,
+      retried: false,
+    };
+  }
+
+  if (response.ok || !retryableStatuses.has(response.status)) {
+    return { response, modelUsed, fellBack: false, retried };
+  }
+
+  await response.text().catch(() => "");
+  await pauseForRetry(response);
+  retried = true;
+
+  try {
+    response = await run(args.payload);
+  } catch (error) {
+    if (args.signal.aborted) throw error;
+    const fallback = await run(fallbackPayload);
+    return {
+      response: fallback,
+      modelUsed: fallbackModel,
+      fellBack: true,
+      retried,
+    };
+  }
+
+  if (response.ok || !retryableStatuses.has(response.status)) {
+    return { response, modelUsed, fellBack: false, retried };
+  }
+
+  await response.text().catch(() => "");
+  await pauseForRetry(response);
+
   response = await run(fallbackPayload);
   modelUsed = fallbackModel;
-  return { response, modelUsed, fellBack: true };
+
+  return {
+    response,
+    modelUsed,
+    fellBack: true,
+    retried,
+  };
 }
 
 async function providerError(response: Response) {
@@ -608,7 +659,7 @@ export async function POST(request: Request) {
   };
 
   if (tools.length) {
-    const { response: upstream, modelUsed, fellBack } = await providerFetch({
+    const { response: upstream, modelUsed, fellBack, retried } = await providerFetch({
       baseUrl: provider.baseUrl,
       apiKey: provider.apiKey,
       payload: { ...basePayload, stream: false, tools },
@@ -711,6 +762,8 @@ export async function POST(request: Request) {
         tools: toolNames,
         router_reason: plan.reason,
         fallback: fellBack,
+        retried,
+        complexity_score: plan.complexityScore,
       },
     });
 
@@ -731,11 +784,13 @@ export async function POST(request: Request) {
         "X-Tensorra-Model": modelUsed,
         "X-Tensorra-Tools": toolNames.join(","),
         "X-Tensorra-Fallback": fellBack ? "1" : "0",
+        "X-Tensorra-Retry": retried ? "1" : "0",
+        "X-Tensorra-Complexity": String(plan.complexityScore),
       },
     });
   }
 
-  const { response: upstream, modelUsed, fellBack } = await providerFetch({
+  const { response: upstream, modelUsed, fellBack, retried } = await providerFetch({
     baseUrl: provider.baseUrl,
     apiKey: provider.apiKey,
     payload: { ...basePayload, stream: true },
@@ -819,6 +874,8 @@ export async function POST(request: Request) {
             effective_mode: effectiveMode,
             router_reason: plan.reason,
             fallback: fellBack,
+            retried,
+            complexity_score: plan.complexityScore,
             empty_provider_response: !complete.trim(),
           },
         });
@@ -892,6 +949,8 @@ export async function POST(request: Request) {
       "X-Tensorra-Mode": effectiveMode,
       "X-Tensorra-Model": modelUsed,
       "X-Tensorra-Fallback": fellBack ? "1" : "0",
+      "X-Tensorra-Retry": retried ? "1" : "0",
+      "X-Tensorra-Complexity": String(plan.complexityScore),
     },
   });
 }
