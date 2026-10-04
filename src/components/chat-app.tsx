@@ -139,6 +139,8 @@ export default function ChatApp() {
   const [accountPlan, setAccountPlan] = useState<TensorraPlanId>("free");
   const [subscriptionStatus, setSubscriptionStatus] = useState("active");
   const [feedback, setFeedback] = useState<Record<string, -1 | 1>>({});
+  const [correctionFor, setCorrectionFor] = useState<string | null>(null);
+  const [correctionText, setCorrectionText] = useState("");
   const [listening, setListening] = useState(false);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
@@ -710,7 +712,9 @@ export default function ChatApp() {
       user_id: userData.user.id,
       message_id: message.id,
       rating,
-      mode: thinkingMode === "auto" ? null : thinkingMode,
+      mode: message.metadata?.effective_mode ?? (
+        thinkingMode === "auto" ? null : thinkingMode
+      ),
       model_name: message.model_name ?? null,
       eligible_for_training: allowTraining,
     }, { onConflict: "user_id,message_id" });
@@ -720,7 +724,49 @@ export default function ChatApp() {
         ...current,
         [message.id!]: rating,
       }));
+
+      if (rating === -1) {
+        setCorrectionFor(message.id);
+        setCorrectionText("");
+      } else if (correctionFor === message.id) {
+        setCorrectionFor(null);
+        setCorrectionText("");
+      }
     }
+  }
+
+  async function saveCorrection(message: Message) {
+    if (!message.id) return;
+    const correction = correctionText.trim();
+    if (!correction) {
+      setCorrectionFor(null);
+      return;
+    }
+
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    const { error } = await supabase
+      .from("message_feedback")
+      .update({
+        correction: correction.slice(0, 12000),
+        eligible_for_training: allowTraining,
+      })
+      .eq("user_id", userData.user.id)
+      .eq("message_id", message.id);
+
+    if (error) {
+      setNotice("Не удалось сохранить исправление ответа.");
+      return;
+    }
+
+    setCorrectionFor(null);
+    setCorrectionText("");
+    setNotice(
+      allowTraining
+        ? "Исправление сохранено и может помочь обучению TENSORRA."
+        : "Исправление сохранено. Для обучения оно не используется без твоего разрешения.",
+    );
   }
 
   async function signOut() {
@@ -1128,27 +1174,80 @@ export default function ChatApp() {
                     ) : null}
 
                     {message.role === "assistant" && message.id ? (
-                      <div className="feedbackRow">
-                        <button
-                          className={
-                            feedback[message.id] === 1 ? "active" : ""
-                          }
-                          onClick={() => void rateMessage(message, 1)}
-                        >
-                          ↑ Хорошо
-                        </button>
-                        <button
-                          className={
-                            feedback[message.id] === -1 ? "active" : ""
-                          }
-                          onClick={() => void rateMessage(message, -1)}
-                        >
-                          ↓ Плохо
-                        </button>
-                        <button onClick={() => speakAnswer(message.content)}>
-                          ◌ Озвучить
-                        </button>
-                      </div>
+                      <>
+                        <div className="feedbackRow">
+                          <button
+                            className={
+                              feedback[message.id] === 1 ? "active" : ""
+                            }
+                            onClick={() => void rateMessage(message, 1)}
+                          >
+                            ↑ Хорошо
+                          </button>
+                          <button
+                            className={
+                              feedback[message.id] === -1 ? "active" : ""
+                            }
+                            onClick={() => void rateMessage(message, -1)}
+                          >
+                            ↓ Плохо
+                          </button>
+                          <button onClick={() => speakAnswer(message.content)}>
+                            ◌ Озвучить
+                          </button>
+                        </div>
+
+                        {correctionFor === message.id ? (
+                          <div className="correctionCard">
+                            <div className="correctionHead">
+                              <div>
+                                <strong>Что стоило ответить лучше?</strong>
+                                <span>
+                                  Это помогает улучшать качество. В обучение попадёт
+                                  только при включённом разрешении.
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                aria-label="Закрыть"
+                                onClick={() => {
+                                  setCorrectionFor(null);
+                                  setCorrectionText("");
+                                }}
+                              >
+                                ×
+                              </button>
+                            </div>
+
+                            <textarea
+                              value={correctionText}
+                              onChange={(event) => setCorrectionText(event.target.value)}
+                              placeholder="Напиши правильный ответ, недостающий факт или что именно было не так…"
+                              rows={3}
+                            />
+
+                            <div className="correctionActions">
+                              <button
+                                type="button"
+                                className="correctionSave"
+                                onClick={() => void saveCorrection(message)}
+                                disabled={!correctionText.trim()}
+                              >
+                                Сохранить исправление
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCorrectionFor(null);
+                                  setCorrectionText("");
+                                }}
+                              >
+                                Не сейчас
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </>
                     ) : null}
                   </div>
                 </article>
