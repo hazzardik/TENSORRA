@@ -71,3 +71,16 @@ Planned naming:
 Core v1 supports a dedicated OpenAI-compatible model endpoint through `TENSORRA_MODEL_BASE_URL` and `TENSORRA_MODEL_API_KEY`. A future self-hosted vLLM/compatible endpoint can therefore replace the hosted development model without rewriting the product UI, memory, RAG, planner, verifier or tool layer.
 
 Promotion rule: never switch production to a TENSORRA checkpoint only because training loss improved. The checkpoint must beat the base model on the held-out Core Eval and must not regress tool use, factuality, safety, latency beyond the accepted budget, or Russian-language quality.
+
+For a first side-by-side model comparison, expose the base and candidate through OpenAI-compatible endpoints and run:
+
+```bash
+BASELINE_API_KEY=... CANDIDATE_API_KEY=... \
+python model-lab/compare_endpoints.py \
+  --baseline-url https://BASE/v1 \
+  --baseline-model openai/gpt-oss-20b \
+  --candidate-url https://CANDIDATE/v1 \
+  --candidate-model TENSORRA-20B-SFT-v1
+```
+
+The comparator writes both answers, latency and errors to JSONL. This does not replace the full Core eval because routing, memory, RAG and tools live above the raw checkpoint.
