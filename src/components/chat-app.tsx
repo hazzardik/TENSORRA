@@ -37,6 +37,9 @@ type Message = {
     fallback?: boolean;
     retried?: boolean;
     complexity_score?: number | null;
+    planner_used?: boolean;
+    verifier_used?: boolean;
+    verifier_revised?: boolean;
   } | null;
 };
 
@@ -498,6 +501,9 @@ export default function ChatApp() {
       const complexityScore = complexityHeader === null
         ? null
         : Number(complexityHeader);
+      const plannerUsed = response.headers.get("X-Tensorra-Planner") === "1";
+      const verified = response.headers.get("X-Tensorra-Verified") === "1";
+      const verifierRevised = response.headers.get("X-Tensorra-Revised") === "1";
 
       setMessages((current) => {
         const copy = [...current];
@@ -515,6 +521,10 @@ export default function ChatApp() {
               complexity_score: Number.isFinite(complexityScore)
                 ? complexityScore
                 : null,
+              planner_used: plannerUsed,
+              verified,
+              verifier_used: verified || verifierRevised,
+              verifier_revised: verifierRevised,
             },
           };
         }
@@ -970,12 +980,16 @@ export default function ChatApp() {
                             typeof message.metadata.complexity_score === "number"
                               ? `оценка сложности: ${message.metadata.complexity_score}`
                               : "",
+                            message.metadata.planner_used ? "planner: включён" : "",
+                            message.metadata.verified ? "verifier: пройден" : "",
+                            message.metadata.verifier_revised ? "verifier: ответ исправлен" : "",
                             message.metadata.retried ? "провайдер: повторный запрос" : "",
                           ].filter(Boolean).join(" · ")}
                         >
                           {message.metadata.requested_mode === "auto" ? "Авто→" : ""}
                           {thinkingModeLabel(message.metadata.effective_mode)}
                           {modelLabel(message.model_name) ? ` · ${modelLabel(message.model_name)}` : ""}
+                          {message.metadata.verified ? " · ✓" : ""}
                           {message.metadata.fallback ? " · резерв" : ""}
                         </span>
                       ) : null}
