@@ -707,7 +707,7 @@ export default function ChatApp() {
           <div className="tensorMark">T</div>
           <div className="brandText">
             <strong>TENSORRA</strong>
-            <span>v0.12 · reasoning + desktop</span>
+            <span>v0.13 · kernel + polish</span>
           </div>
           <button
             className="iconButton mobileOnly"
@@ -760,7 +760,11 @@ export default function ChatApp() {
                   );
                 }}
               >
-                ⋯
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="6" cy="12" r="1.65" fill="currentColor" />
+                  <circle cx="12" cy="12" r="1.65" fill="currentColor" />
+                  <circle cx="18" cy="12" r="1.65" fill="currentColor" />
+                </svg>
               </button>
 
             </div>
