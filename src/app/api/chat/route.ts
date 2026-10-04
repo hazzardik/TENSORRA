@@ -3,6 +3,7 @@ import { createChatTitle, extractMemory } from "@/lib/memory";
 import {
   normalizeThinkingMode,
   THINKING_MODES,
+  thinkingInstructionForMode,
   type ConcreteThinkingMode,
 } from "@/lib/tensorra/model-router";
 import { planRequest } from "@/lib/tensorra/request-router";
@@ -407,6 +408,7 @@ export async function POST(request: Request) {
     chatId?: string;
     message?: string;
     documentIds?: string[];
+    requestedMode?: unknown;
   } | null;
 
   const chatId = body?.chatId?.trim();
@@ -435,7 +437,9 @@ export async function POST(request: Request) {
     return new Response("Чат не найден.", { status: 404 });
   }
 
-  const requestedMode = normalizeThinkingMode(chat.mode);
+  const requestedMode = normalizeThinkingMode(
+    body?.requestedMode ?? chat.mode,
+  );
 
   const { data: attachedDocs } = attachedDocumentIds.length
     ? await supabase
@@ -472,6 +476,8 @@ export async function POST(request: Request) {
         }),
       ),
       router_reason: plan.reason,
+      requested_mode: requestedMode,
+      effective_mode: effectiveMode,
     },
   });
 
@@ -483,6 +489,7 @@ export async function POST(request: Request) {
     title: chat.title === "New chat" || chat.title === "Новый чат"
       ? createChatTitle(message)
       : chat.title,
+    mode: requestedMode,
     updated_at: new Date().toISOString(),
   }).eq("id", chatId).eq("user_id", userId);
 
@@ -569,12 +576,15 @@ export async function POST(request: Request) {
     ).catch(() => "");
   }
 
-  const systemPrompt = buildSystemPrompt(
-    relevantMemories,
-    mergedKnowledge,
-    verificationBrief,
-    { autonomousTools: true },
-  );
+  const systemPrompt = [
+    buildSystemPrompt(
+      relevantMemories,
+      mergedKnowledge,
+      verificationBrief,
+      { autonomousTools: true },
+    ),
+    thinkingInstructionForMode(effectiveMode),
+  ].join("\n\n");
 
   const provider = providerConfig();
   if (!provider.apiKey) {
