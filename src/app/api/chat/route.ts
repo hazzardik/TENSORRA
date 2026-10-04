@@ -671,7 +671,7 @@ export async function POST(request: Request) {
     .eq("user_id", userId)
     .in("role", ["user", "assistant"])
     .order("created_at", { ascending: false })
-    .limit(24);
+    .limit(60);
 
   const memoryPromise = plan.useMemory
     ? loadRelevantMemories(supabase, userId, message)
@@ -723,27 +723,65 @@ export async function POST(request: Request) {
     )
     .slice(0, 14);
 
-  const chronological = (((history ?? []) as StoredMessage[]).reverse()).slice(-24);
-  const conversation = trimConversation(chronological);
+  const chronological = ((history ?? []) as StoredMessage[]).reverse();
+  const contextBudget = contextBudgetForMode(effectiveMode);
+  const { older, recent } = partitionConversation(
+    chronological,
+    Math.floor(contextBudget * 0.72),
+  );
+
+  let contextSummary = "";
+  if (older.length) {
+    const olderText = older
+      .map((item) => `${item.role}: ${item.content}`)
+      .join("\n");
+
+    const shouldModelSummarize =
+      effectiveMode === "deep" ||
+      effectiveMode === "max" ||
+      olderText.length > 12000;
+
+    contextSummary = shouldModelSummarize
+      ? await createConversationSummary(
+          buildConversationSummaryPrompt(olderText),
+          request.signal,
+        ).catch(() => fallbackConversationSummary(older))
+      : fallbackConversationSummary(older);
+  }
+
+  const conversation = trimConversation(recent, contextBudget);
   const recentContext = conversation
     .map((item) => `${item.role}: ${item.content}`)
     .join("\n");
 
-  let verificationBrief = "";
-  if (modelConfig.verify && verifiedDocumentIds.length === 0) {
-    verificationBrief = await createVerificationBrief(
-      [{ role: "user", content: buildVerificationPrompt(message, recentContext) }],
-      modelConfig,
-      request.signal,
-    ).catch(() => "");
-  }
+  const shouldPlan =
+    effectiveMode === "deep" ||
+    effectiveMode === "max" ||
+    plan.complexityScore >= 5;
+
+  const planningBrief = shouldPlan
+    ? await createPlanningBrief(
+        buildPlanningPrompt({
+          userMessage: message,
+          recentContext,
+          contextSummary,
+          mode: effectiveMode,
+          routerReason: plan.reason,
+        }),
+        request.signal,
+      ).catch(() => "")
+    : "";
 
   const systemPrompt = [
     buildSystemPrompt(
       relevantMemories,
       mergedKnowledge,
-      verificationBrief,
-      { autonomousTools: true },
+      "",
+      {
+        autonomousTools: true,
+        planningBrief,
+        contextSummary,
+      },
     ),
     thinkingInstructionForMode(effectiveMode),
   ].join("\n\n");
