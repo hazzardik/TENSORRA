@@ -2,7 +2,7 @@ import { createChatTitle } from "@/lib/memory";
 import { createClient } from "@/lib/supabase/server";
 import {
   normalizeThinkingMode,
-  resolveAutoThinkingMode,
+  resolveAutoThinkingDecision,
   thinkingInstructionForMode,
   type ConcreteThinkingMode,
 } from "@/lib/tensorra/model-router";
@@ -79,8 +79,12 @@ export async function POST(request: Request) {
   const requestedMode = normalizeThinkingMode(
     requestedModeFromClient ?? chat.mode,
   );
+  const autoDecision = resolveAutoThinkingDecision(message, {
+    hasAttachment: true,
+    vision: true,
+  });
   const effectiveMode: ConcreteThinkingMode = requestedMode === "auto"
-    ? resolveAutoThinkingMode(message)
+    ? autoDecision.mode
     : requestedMode;
   const reasoningEffort = reasoningForMode(effectiveMode);
 
@@ -230,6 +234,10 @@ export async function POST(request: Request) {
       requested_mode: requestedMode,
       effective_mode: effectiveMode,
       reasoning_effort: reasoningEffort,
+      complexity_score: requestedMode === "auto" ? autoDecision.score : 0,
+      router_reason: requestedMode === "auto"
+        ? autoDecision.reasons.map((item) => `auto:${item}`)
+        : [`manual-mode:${requestedMode}`],
     },
   });
 
@@ -242,7 +250,14 @@ export async function POST(request: Request) {
     input_tokens: result?.usage?.prompt_tokens ?? null,
     output_tokens: result?.usage?.completion_tokens ?? null,
     latency_ms: Date.now() - startedAt,
-    metadata: { effective_mode: effectiveMode, mime_type: mimeType, size_bytes: image.size },
+    metadata: {
+      requested_mode: requestedMode,
+      effective_mode: effectiveMode,
+      reasoning_effort: reasoningEffort,
+      complexity_score: requestedMode === "auto" ? autoDecision.score : 0,
+      mime_type: mimeType,
+      size_bytes: image.size,
+    },
   });
 
   return new Response(streamText(answer), {
@@ -253,6 +268,9 @@ export async function POST(request: Request) {
       "X-Tensorra-Mode": effectiveMode,
       "X-Tensorra-Model": model,
       "X-Tensorra-Vision": "1",
+      "X-Tensorra-Complexity": String(
+        requestedMode === "auto" ? autoDecision.score : 0,
+      ),
     },
   });
 }
