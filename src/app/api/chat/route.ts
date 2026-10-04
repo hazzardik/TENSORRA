@@ -27,6 +27,7 @@ import {
   upsertSemanticMemory,
 } from "@/lib/tensorra/qdrant";
 import { providerTools } from "@/lib/tensorra/tools";
+import { normalizePlan } from "@/lib/tensorra/plans";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -595,12 +596,24 @@ export async function POST(request: Request) {
     return new Response("Сообщение слишком длинное.", { status: 413 });
   }
 
-  const { data: chat, error: chatError } = await supabase
-    .from("chats")
-    .select("id,title,mode")
-    .eq("id", chatId)
-    .eq("user_id", userId)
-    .single();
+  const [
+    { data: chat, error: chatError },
+    { data: subscription },
+  ] = await Promise.all([
+    supabase
+      .from("chats")
+      .select("id,title,mode")
+      .eq("id", chatId)
+      .eq("user_id", userId)
+      .single(),
+    supabase
+      .from("subscriptions")
+      .select("plan,status")
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+
+  const billingPlan = normalizePlan(subscription?.plan);
 
   if (chatError || !chat) {
     return new Response("Чат не найден.", { status: 404 });
@@ -966,6 +979,7 @@ export async function POST(request: Request) {
         fallback: fellBack,
         retried,
         complexity_score: plan.complexityScore,
+        billing_plan: billingPlan,
         planner_used: Boolean(planningBrief),
         context_summary_used: Boolean(contextSummary),
         verifier_used: effectiveMode === "max",
@@ -1082,6 +1096,7 @@ export async function POST(request: Request) {
         fallback: fellBack,
         retried,
         complexity_score: plan.complexityScore,
+        billing_plan: billingPlan,
         planner_used: Boolean(planningBrief),
         context_summary_used: Boolean(contextSummary),
         verifier_used: true,
@@ -1206,6 +1221,8 @@ export async function POST(request: Request) {
             fallback: fellBack,
             retried,
             complexity_score: plan.complexityScore,
+            billing_plan: billingPlan,
+        billing_plan: billingPlan,
             empty_provider_response: !complete.trim(),
           },
         });
