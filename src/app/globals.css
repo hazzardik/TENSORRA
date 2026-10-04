@@ -1816,3 +1816,320 @@ body{
 .chatItem.active + .chatMenuButton{
   background:rgba(255,255,255,.025);
 }
+
+
+/* ========================================================================== */
+/* TENSORRA v0.15 — denser empty workspace + subscription-ready surface       */
+/* ========================================================================== */
+
+.accountPlanBadge{
+  min-height:34px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:7px 10px;
+  border:1px solid rgba(255,255,255,.065);
+  border-radius:11px;
+  background:rgba(255,255,255,.022);
+  color:#718096;
+  font-size:9px;
+  letter-spacing:.035em;
+}
+
+.accountPlanBadge span{
+  color:#b9c5d4;
+  font-weight:650;
+}
+
+.accountPlanBadge strong{
+  color:#78b9c8;
+  font-size:8px;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.hero{
+  width:min(1040px,calc(100% - 64px));
+}
+
+.heroWorkbench{
+  width:100%;
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(300px,.82fr);
+  gap:12px;
+  align-items:stretch;
+  margin-top:25px;
+}
+
+.heroWorkbench .suggestions{
+  max-width:none;
+  margin:0;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;
+}
+
+.heroWorkbench .suggestions button{
+  min-height:91px;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+  align-items:flex-start;
+  gap:4px;
+  padding:14px 15px;
+  border-radius:17px;
+  text-align:left;
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.038),rgba(255,255,255,.014));
+  border:1px solid rgba(255,255,255,.072);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.022),
+    0 13px 36px rgba(0,0,0,.08);
+}
+
+.heroWorkbench .suggestions button::before{
+  content:"";
+  position:absolute;
+}
+
+.heroWorkbench .suggestions .wideSuggestion{
+  grid-column:1 / -1;
+  min-height:78px;
+}
+
+.suggestionKicker{
+  margin-bottom:auto;
+  color:#6f8298;
+  font-size:8px;
+  font-weight:750;
+  letter-spacing:.16em;
+}
+
+.heroWorkbench .suggestions strong{
+  color:#dce4ee;
+  font-size:12px;
+  font-weight:590;
+  letter-spacing:-.012em;
+}
+
+.heroWorkbench .suggestions small{
+  color:#69768a;
+  font-size:9.5px;
+  line-height:1.35;
+}
+
+.coreStatusCard{
+  position:relative;
+  overflow:hidden;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  padding:15px;
+  border:1px solid rgba(126,231,255,.085);
+  border-radius:19px;
+  background:
+    radial-gradient(260px 160px at 95% -5%,rgba(126,231,255,.07),transparent 68%),
+    radial-gradient(230px 170px at -10% 110%,rgba(156,140,255,.055),transparent 70%),
+    linear-gradient(155deg,rgba(13,19,27,.82),rgba(7,11,17,.82));
+  backdrop-filter:blur(20px) saturate(120%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.028),
+    0 18px 55px rgba(0,0,0,.12);
+}
+
+.coreStatusCard::after{
+  content:"";
+  position:absolute;
+  inset:auto -25% -80% 20%;
+  height:150px;
+  background:radial-gradient(circle,rgba(126,231,255,.07),transparent 67%);
+  filter:blur(20px);
+  pointer-events:none;
+}
+
+.coreStatusHead{
+  position:relative;
+  z-index:1;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+
+.coreStatusHead>div{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+
+.coreStatusHead strong{
+  color:#e8eef6;
+  font-size:13px;
+  font-weight:610;
+  letter-spacing:-.018em;
+}
+
+.coreLive{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  color:#69aebb;
+  font-size:8px;
+  font-weight:760;
+  letter-spacing:.15em;
+}
+
+.coreLive i{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#69e6bb;
+  box-shadow:0 0 0 4px rgba(105,230,187,.06),0 0 14px rgba(105,230,187,.32);
+}
+
+.corePlan{
+  padding:5px 8px;
+  border:1px solid rgba(255,255,255,.075);
+  border-radius:999px;
+  background:rgba(255,255,255,.025);
+  color:#93a2b5;
+  font-size:8px;
+  font-weight:680;
+  letter-spacing:.06em;
+}
+
+.coreStatusGrid{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  border:1px solid rgba(255,255,255,.055);
+  border-radius:14px;
+  overflow:hidden;
+  background:rgba(2,5,9,.18);
+}
+
+.coreStatusGrid>div{
+  min-height:57px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:4px;
+  padding:10px 11px;
+  border-right:1px solid rgba(255,255,255,.045);
+  border-bottom:1px solid rgba(255,255,255,.045);
+}
+
+.coreStatusGrid>div:nth-child(2n){border-right:0}
+.coreStatusGrid>div:nth-last-child(-n+2){border-bottom:0}
+
+.coreStatusGrid span{
+  color:#5f6d81;
+  font-size:8px;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+
+.coreStatusGrid strong{
+  overflow:hidden;
+  color:#bfc9d6;
+  font-size:10px;
+  font-weight:560;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+
+.corePipeline{
+  position:relative;
+  z-index:1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:5px;
+  margin-top:13px;
+}
+
+.corePipeline span{
+  padding:4px 6px;
+  border:1px solid rgba(255,255,255,.05);
+  border-radius:7px;
+  color:#6c7c91;
+  background:rgba(255,255,255,.018);
+  font-size:7.5px;
+  letter-spacing:.035em;
+}
+
+.corePipeline i{
+  color:#445064;
+  font-size:9px;
+  font-style:normal;
+}
+
+.coreStatusCard p{
+  position:relative;
+  z-index:1;
+  margin:12px 1px 0;
+  color:#667488;
+  font-size:9px;
+  line-height:1.45;
+}
+
+@media (min-width:1440px){
+  .hero{
+    width:min(1080px,calc(100% - 82px));
+  }
+}
+
+@media (max-width:1080px){
+  .heroWorkbench{
+    grid-template-columns:1fr;
+  }
+
+  .coreStatusCard{
+    min-height:0;
+  }
+}
+
+@media (max-width:760px){
+  .hero{
+    width:calc(100% - 28px);
+  }
+
+  .heroWorkbench{
+    margin-top:20px;
+    gap:9px;
+  }
+
+  .heroWorkbench .suggestions{
+    grid-template-columns:1fr;
+  }
+
+  .heroWorkbench .suggestions .wideSuggestion{
+    grid-column:auto;
+  }
+
+  .heroWorkbench .suggestions button,
+  .heroWorkbench .suggestions .wideSuggestion{
+    min-height:68px;
+  }
+
+  .coreStatusCard{
+    padding:13px;
+    border-radius:16px;
+  }
+
+  .corePipeline{
+    overflow-x:auto;
+    justify-content:flex-start;
+    scrollbar-width:none;
+  }
+
+  .corePipeline::-webkit-scrollbar{display:none}
+
+  .corePipeline span{
+    white-space:nowrap;
+  }
+}
