@@ -33,11 +33,33 @@ Before real training, still perform manual quality review and a stronger privacy
 
 ## Phase 3 — fine-tune
 
-Do not jump to training until the held-out eval set is large enough to measure regressions. TENSORRA's product kernel (routing, memory, tools, RAG, safety and telemetry) should remain independently testable from the model checkpoint.
+Do not jump to training until the held-out eval set is large enough to measure regressions. TENSORRA's product kernel (routing, memory, tools, RAG, safety and telemetry) remains independently testable from the model checkpoint.
 
+The first target is `openai/gpt-oss-20b`. The repository now contains a CUDA LoRA launcher based on the maintained gpt-oss Transformers/TRL path.
 
+Prepare data:
 
-Target checkpoint: `openai/gpt-oss-20b` first. The model is fine-tunable and supports configurable low/medium/high reasoning. Use the official OpenAI/Hugging Face training guidance current at training time; do not freeze a stale library recipe in the product repo.
+```bash
+python model-lab/prepare_sft.py raw_feedback.jsonl tensorra_train.jsonl \
+  --eval-output tensorra_eval.jsonl --eval-ratio 0.05
+```
+
+Create a dedicated GPU environment and install training dependencies:
+
+```bash
+pip install -r model-lab/requirements-training.txt
+```
+
+Start the first adapter run:
+
+```bash
+python model-lab/train_sft_lora.py \
+  --train tensorra_train.jsonl \
+  --eval tensorra_eval.jsonl \
+  --output artifacts/TENSORRA-20B-SFT-v1
+```
+
+Baseline hyperparameters live in `model-lab/configs/tensorra-20b-sft-v1.yaml`. They intentionally start near the maintained Hugging Face gpt-oss LoRA recipe instead of inventing a custom recipe before we have measurements.
 
 Planned naming:
 - `TENSORRA-20B-SFT-v1`
@@ -46,4 +68,6 @@ Planned naming:
 
 ## Phase 4 — self-host
 
-The application already talks to an OpenAI-compatible endpoint through `AI_BASE_URL`, so a future self-hosted Transformers/vLLM endpoint can replace Groq without rewriting the product UI, memory, RAG or tool layer.
+Core v1 supports a dedicated OpenAI-compatible model endpoint through `TENSORRA_MODEL_BASE_URL` and `TENSORRA_MODEL_API_KEY`. A future self-hosted vLLM/compatible endpoint can therefore replace the hosted development model without rewriting the product UI, memory, RAG, planner, verifier or tool layer.
+
+Promotion rule: never switch production to a TENSORRA checkpoint only because training loss improved. The checkpoint must beat the base model on the held-out Core Eval and must not regress tool use, factuality, safety, latency beyond the accepted budget, or Russian-language quality.
