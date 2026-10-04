@@ -1,5 +1,5 @@
 import type { ConcreteThinkingMode, ThinkingMode } from "./model-router";
-import { resolveAutoThinkingMode } from "./model-router";
+import { resolveAutoThinkingDecision } from "./model-router";
 
 export type RequestPlan = {
   effectiveMode: ConcreteThinkingMode;
@@ -8,6 +8,7 @@ export type RequestPlan = {
   useMemory: boolean;
   useKnowledge: boolean;
   extractMemory: boolean;
+  complexityScore: number;
   reason: string[];
 };
 
@@ -57,18 +58,26 @@ export function planRequest(args: {
     "remember", "my preference", "my goal", "i plan",
   ]);
 
-  let effectiveMode: ConcreteThinkingMode =
+  const autoDecision = resolveAutoThinkingDecision(
+    args.message,
+    { hasAttachment: args.hasAttachedDocument },
+  );
+
+  const effectiveMode: ConcreteThinkingMode =
     args.requestedMode === "auto"
-      ? resolveAutoThinkingMode(args.message)
+      ? autoDecision.mode
       : args.requestedMode;
 
-  if (
-    args.hasAttachedDocument &&
-    args.requestedMode === "auto" &&
-    effectiveMode === "balanced"
-  ) {
-    effectiveMode = "deep";
-    reason.push("attached-document");
+  const complexityScore =
+    args.requestedMode === "auto"
+      ? autoDecision.score
+      : 0;
+
+  if (args.requestedMode === "auto") {
+    reason.push(...autoDecision.reasons.map((item) => `auto:${item}`));
+    reason.push(`auto-score:${autoDecision.score}`);
+  } else {
+    reason.push(`manual-mode:${args.requestedMode}`);
   }
 
   const useWeb = explicitWeb || currentness;
@@ -90,6 +99,7 @@ export function planRequest(args: {
     useMemory,
     useKnowledge,
     extractMemory,
+    complexityScore,
     reason,
   };
 }
