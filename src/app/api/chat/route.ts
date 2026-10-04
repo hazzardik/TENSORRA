@@ -271,6 +271,9 @@ async function saveAssistantMessage(args: {
   verified: boolean;
   toolsEnabled: string[];
   routerReason: string[];
+  fellBack?: boolean;
+  retried?: boolean;
+  complexityScore?: number;
   sources?: ResearchSource[];
 }) {
   await args.supabase.from("messages").insert({
@@ -286,6 +289,9 @@ async function saveAssistantMessage(args: {
       verified: args.verified,
       tools_enabled: args.toolsEnabled,
       router_reason: args.routerReason,
+      fallback: Boolean(args.fellBack),
+      retried: Boolean(args.retried),
+      complexity_score: args.complexityScore ?? null,
       sources: args.sources ?? [],
     },
   });
@@ -725,6 +731,9 @@ export async function POST(request: Request) {
       verified: modelConfig.verify,
       toolsEnabled: toolNames,
       routerReason: plan.reason,
+      fellBack,
+      retried,
+      complexityScore: plan.complexityScore,
       sources,
     });
 
@@ -860,6 +869,9 @@ export async function POST(request: Request) {
           verified: modelConfig.verify,
           toolsEnabled: [],
           routerReason: plan.reason,
+          fellBack,
+          retried,
+          complexityScore: plan.complexityScore,
         });
 
         await supabase.from("usage_events").insert({
@@ -911,6 +923,9 @@ export async function POST(request: Request) {
           verified: false,
           toolsEnabled: [],
           routerReason: [...plan.reason, "stream_interrupted"],
+          fellBack,
+          retried,
+          complexityScore: plan.complexityScore,
         }).catch(() => undefined);
 
         try {
