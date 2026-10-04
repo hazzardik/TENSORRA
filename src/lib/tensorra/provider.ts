@@ -4,9 +4,25 @@ import { buildRevisionPrompt } from "./prompt";
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
 export function providerConfig() {
-  const baseUrl = (process.env.AI_BASE_URL ?? "https://api.groq.com/openai/v1").replace(/\/$/, "");
-  const apiKey = process.env.GROQ_API_KEY ?? process.env.AI_API_KEY;
-  return { baseUrl, apiKey };
+  const dedicatedBase = process.env.TENSORRA_MODEL_BASE_URL?.trim();
+  const baseUrl = (
+    dedicatedBase ??
+    process.env.AI_BASE_URL ??
+    "https://api.groq.com/openai/v1"
+  ).replace(/\/$/, "");
+
+  const apiKey =
+    process.env.TENSORRA_MODEL_API_KEY ??
+    process.env.GROQ_API_KEY ??
+    process.env.AI_API_KEY;
+
+  const providerName = dedicatedBase
+    ? "tensorra-model"
+    : baseUrl.includes("groq.com")
+      ? "groq"
+      : "openai-compatible";
+
+  return { baseUrl, apiKey, providerName };
 }
 
 export async function createVerificationBrief(
