@@ -827,7 +827,7 @@ export async function POST(request: Request) {
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     } | null;
 
-    const answer = data?.choices?.[0]?.message?.content?.trim() ?? "";
+    let answer = data?.choices?.[0]?.message?.content?.trim() ?? "";
     if (!answer) {
       return new Response("Модель вернула пустой ответ.", { status: 502 });
     }
@@ -862,6 +862,45 @@ export async function POST(request: Request) {
 
     const sources = [...sourceMap.values()];
 
+    let postVerified = false;
+    let verifierRevised = false;
+
+    if (effectiveMode === "max") {
+      const evidence = executedTools
+        .flatMap((tool) => [
+          ...(tool.search_results?.results ?? []).map((item) => ({
+            title: item.title,
+            url: item.url,
+            content: item.content,
+          })),
+          ...(tool.code_results ?? []).map((item) => ({ code_result: item.text })),
+        ])
+        .slice(0, 12);
+
+      const verificationResult = await verifyAndReviseAnswer({
+        verificationPrompt: buildPostVerificationPrompt({
+          userMessage: message,
+          draft: answer,
+          recentContext,
+          evidence: JSON.stringify(evidence),
+        }),
+        userMessage: message,
+        systemPrompt,
+        config: modelConfig,
+        draft: answer,
+        signal: request.signal,
+      }).catch(() => ({
+        answer,
+        verification: "",
+        verified: false,
+        revised: false,
+      }));
+
+      answer = verificationResult.answer;
+      postVerified = verificationResult.verified;
+      verifierRevised = verificationResult.revised;
+    }
+
     await saveAssistantMessage({
       supabase,
       userId,
@@ -871,7 +910,7 @@ export async function POST(request: Request) {
       requestedMode,
       effectiveMode,
       reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
-      verified: modelConfig.verify,
+      verified: postVerified,
       toolsEnabled: toolNames,
       routerReason: plan.reason,
       fellBack,
@@ -916,6 +955,11 @@ export async function POST(request: Request) {
         fallback: fellBack,
         retried,
         complexity_score: plan.complexityScore,
+        planner_used: Boolean(planningBrief),
+        context_summary_used: Boolean(contextSummary),
+        verifier_used: effectiveMode === "max",
+        verifier_revised: verifierRevised,
+        verified: postVerified,
       },
     });
 
@@ -938,6 +982,9 @@ export async function POST(request: Request) {
         "X-Tensorra-Fallback": fellBack ? "1" : "0",
         "X-Tensorra-Retry": retried ? "1" : "0",
         "X-Tensorra-Complexity": String(plan.complexityScore),
+        "X-Tensorra-Planner": planningBrief ? "1" : "0",
+        "X-Tensorra-Verified": postVerified ? "1" : "0",
+        "X-Tensorra-Revised": verifierRevised ? "1" : "0",
       },
     });
   }
