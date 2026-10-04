@@ -245,7 +245,7 @@ export async function POST(request: Request) {
     user_id: userId,
     chat_id: chatId,
     event_type: "vision_completion",
-    provider: "groq",
+    provider: provider.providerName,
     model_name: model,
     input_tokens: result?.usage?.prompt_tokens ?? null,
     output_tokens: result?.usage?.completion_tokens ?? null,
