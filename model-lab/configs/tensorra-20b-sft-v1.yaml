@@ -1,0 +1,21 @@
+# TENSORRA-20B-SFT-v1 baseline.
+# Values intentionally start close to the maintained Hugging Face gpt-oss LoRA recipe.
+base_model: openai/gpt-oss-20b
+method: lora
+torch_dtype: bfloat16
+attn_implementation: eager
+max_length: 4096
+epochs: 1.0
+learning_rate: 2.0e-4
+gradient_checkpointing: true
+batch_size: 1
+gradient_accumulation: 16
+warmup_ratio: 0.03
+scheduler: cosine_with_min_lr
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.0
+  target_modules: all-linear
+seed: 42
+output: artifacts/TENSORRA-20B-SFT-v1
