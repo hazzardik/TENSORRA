@@ -30,6 +30,11 @@ type Message = {
     vision?: boolean;
     image_filename?: string;
     attachments?: ChatAttachment[];
+    requested_mode?: ThinkingMode;
+    effective_mode?: ThinkingMode;
+    reasoning_effort?: "low" | "medium" | "high";
+    verified?: boolean;
+    fallback?: boolean;
   } | null;
 };
 
@@ -96,6 +101,20 @@ function memoryCategoryLabel(category: string) {
   return labels[category] ?? category;
 }
 
+
+function thinkingModeLabel(mode?: string | null) {
+  return MODES.find((item) => item.id === mode)?.label ?? null;
+}
+
+function modelLabel(model?: string | null) {
+  if (!model) return null;
+  const normalized = model.toLocaleLowerCase();
+  if (normalized.includes("120b")) return "120B";
+  if (normalized.includes("20b")) return "20B";
+  if (normalized.includes("qwen")) return "Vision";
+  return null;
+}
+
 export default function ChatApp() {
   const router = useRouter();
   const [supabase] = useState(() => createClient());
@@ -118,6 +137,7 @@ export default function ChatApp() {
   const attachInput = useRef<HTMLInputElement | null>(null);
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const thinkingModeRef = useRef<ThinkingMode>("auto");
 
   const loadChats = useCallback(async () => {
     const { data, error } = await supabase
@@ -172,7 +192,10 @@ export default function ChatApp() {
   useEffect(() => {
     if (activeChatId) {
       const chat = chats.find((item) => item.id === activeChatId);
-      if (chat?.mode) setThinkingMode(chat.mode);
+      if (chat?.mode) {
+        thinkingModeRef.current = chat.mode;
+        setThinkingMode(chat.mode);
+      }
       if (!loading) void loadMessages(activeChatId);
     } else if (!loading) {
       setMessages([]);
@@ -183,7 +206,7 @@ export default function ChatApp() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  async function ensureChat() {
+  async function ensureChat(mode: ThinkingMode) {
     if (activeChatId) return activeChatId;
 
     const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -194,7 +217,7 @@ export default function ChatApp() {
       .insert({
         user_id: userData.user.id,
         title: "Новый чат",
-        mode: thinkingMode,
+        mode,
       })
       .select("id")
       .single();
@@ -207,6 +230,7 @@ export default function ChatApp() {
   }
 
   async function changeThinkingMode(mode: ThinkingMode) {
+    thinkingModeRef.current = mode;
     setThinkingMode(mode);
     if (!activeChatId) return;
 
@@ -367,6 +391,7 @@ export default function ChatApp() {
 
     const attachment = pendingAttachment;
     const text = input.trim();
+    const requestedMode = thinkingModeRef.current;
     if ((!text && !attachment) || loading) return;
 
     const image = attachment && isImageFile(attachment) ? attachment : null;
@@ -400,13 +425,14 @@ export default function ChatApp() {
     ]);
 
     try {
-      const chatId = await ensureChat();
+      const chatId = await ensureChat(requestedMode);
       let response: Response;
 
       if (image) {
         const form = new FormData();
         form.append("chatId", chatId);
         form.append("message", prompt);
+        form.append("requestedMode", requestedMode);
         form.append("image", image);
         response = await fetch("/api/vision", { method: "POST", body: form });
       } else {
@@ -450,6 +476,7 @@ export default function ChatApp() {
             chatId,
             message: prompt,
             documentIds,
+            requestedMode,
           }),
         });
       }
@@ -460,6 +487,28 @@ export default function ChatApp() {
       if (!response.body) {
         throw new Error("Поток ответа недоступен.");
       }
+
+      const effectiveMode = response.headers.get("X-Tensorra-Mode") as ThinkingMode | null;
+      const responseModel = response.headers.get("X-Tensorra-Model");
+      const fellBack = response.headers.get("X-Tensorra-Fallback") === "1";
+
+      setMessages((current) => {
+        const copy = [...current];
+        const last = copy[copy.length - 1];
+        if (last?.role === "assistant") {
+          copy[copy.length - 1] = {
+            ...last,
+            model_name: responseModel,
+            metadata: {
+              ...(last.metadata ?? {}),
+              requested_mode: requestedMode,
+              effective_mode: effectiveMode ?? requestedMode,
+              fallback: fellBack,
+            },
+          };
+        }
+        return copy;
+      });
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -896,7 +945,14 @@ export default function ChatApp() {
 
                   <div>
                     <div className="messageLabel">
-                      {message.role === "assistant" ? "TENSORRA" : "ВЫ"}
+                      <span>{message.role === "assistant" ? "TENSORRA" : "ВЫ"}</span>
+                      {message.role === "assistant" && message.metadata?.effective_mode ? (
+                        <span className="responseMode">
+                          {thinkingModeLabel(message.metadata.effective_mode)}
+                          {modelLabel(message.model_name) ? ` · ${modelLabel(message.model_name)}` : ""}
+                          {message.metadata.fallback ? " · резерв" : ""}
+                        </span>
+                      ) : null}
                     </div>
 
                     {message.metadata?.attachments?.length ? (
