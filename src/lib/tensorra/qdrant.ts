@@ -68,7 +68,13 @@ export async function upsertSemanticMemory(args: {
 }
 
 export async function searchSemanticMemories(userId: string, query: string, limit = 8) {
-  if (!(await ensureCollection(MEMORY_COLLECTION))) return [] as Array<{ content: string; category: string; score: number }>;
+  if (!(await ensureCollection(MEMORY_COLLECTION))) return [] as Array<{
+    content: string;
+    category: string;
+    score: number;
+    importance: number;
+    createdAt: string | null;
+  }>;
 
   const response = await qdrantFetch(`/collections/${MEMORY_COLLECTION}/points/query`, {
     method: "POST",
@@ -90,6 +96,12 @@ export async function searchSemanticMemories(userId: string, query: string, limi
     content: typeof point.payload?.content === "string" ? point.payload.content : "",
     category: typeof point.payload?.category === "string" ? point.payload.category : "fact",
     score: typeof point.score === "number" ? point.score : 0,
+    importance: typeof point.payload?.importance === "number"
+      ? point.payload.importance
+      : Number(point.payload?.importance) || 5,
+    createdAt: typeof point.payload?.created_at === "string"
+      ? point.payload.created_at
+      : null,
   })).filter((item) => item.content);
 }
 
