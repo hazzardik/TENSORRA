@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   normalizeThinkingMode,
   resolveAutoThinkingMode,
+  thinkingInstructionForMode,
   type ConcreteThinkingMode,
 } from "@/lib/tensorra/model-router";
 import { buildSystemPrompt } from "@/lib/tensorra/prompt";
@@ -29,8 +30,8 @@ function inferMime(file: File) {
 
 function reasoningForMode(mode: ConcreteThinkingMode): "low" | "medium" | "high" {
   if (mode === "fast") return "low";
-  if (mode === "max") return "high";
-  return "medium";
+  if (mode === "balanced") return "medium";
+  return "high";
 }
 
 function streamText(text: string) {
@@ -55,6 +56,7 @@ export async function POST(request: Request) {
   const chatId = String(form.get("chatId") ?? "").trim();
   const message = String(form.get("message") ?? "").trim() || "Разбери это изображение и объясни всё важное.";
   const image = form.get("image");
+  const requestedModeFromClient = form.get("requestedMode");
 
   if (!chatId || !(image instanceof File)) {
     return new Response("Не указан чат или изображение.", { status: 400 });
@@ -74,7 +76,9 @@ export async function POST(request: Request) {
     .single();
   if (chatError || !chat) return new Response("Чат не найден.", { status: 404 });
 
-  const requestedMode = normalizeThinkingMode(chat.mode);
+  const requestedMode = normalizeThinkingMode(
+    requestedModeFromClient ?? chat.mode,
+  );
   const effectiveMode: ConcreteThinkingMode = requestedMode === "auto"
     ? resolveAutoThinkingMode(message)
     : requestedMode;
@@ -143,7 +147,10 @@ export async function POST(request: Request) {
     .single();
 
   await supabase.from("chats").update({
-    title: chat.title === "New chat" ? createChatTitle(message) : chat.title,
+    title: chat.title === "New chat" || chat.title === "Новый чат"
+      ? createChatTitle(message)
+      : chat.title,
+    mode: requestedMode,
     updated_at: new Date().toISOString(),
   }).eq("id", chatId).eq("user_id", userId);
 
@@ -152,12 +159,16 @@ export async function POST(request: Request) {
 
   const prior = (((history ?? []) as Array<{ role: "user" | "assistant"; content: string }>).reverse()).slice(-16);
   const dataUrl = `data:${mimeType};base64,${bytes.toString("base64")}`;
-  const systemPrompt = buildSystemPrompt(
-    (memories ?? []) as Array<{ content: string; category?: string | null }>,
-    [],
-    "",
-    { research: false, autonomousTools: false },
-  ) + "\n\nVision mode: inspect the supplied image carefully. Do not claim to see details that are not actually visible.";
+  const systemPrompt = [
+    buildSystemPrompt(
+      (memories ?? []) as Array<{ content: string; category?: string | null }>,
+      [],
+      "",
+      { research: false, autonomousTools: false },
+    ),
+    thinkingInstructionForMode(effectiveMode),
+    "Vision mode: inspect the supplied image carefully. Do not claim to see details that are not actually visible.",
+  ].join("\n\n");
 
   const model = process.env.TENSORRA_VISION_MODEL ?? "qwen/qwen3.8-27b";
   const upstream = await fetch(`${provider.baseUrl}/chat/completions`, {
@@ -171,7 +182,11 @@ export async function POST(request: Request) {
       stream: false,
       temperature: reasoningEffort === "low" ? 0.7 : 1,
       top_p: reasoningEffort === "low" ? 0.8 : 0.95,
-      max_completion_tokens: effectiveMode === "max" ? 6000 : 3500,
+      max_completion_tokens:
+        effectiveMode === "fast" ? 1500 :
+        effectiveMode === "balanced" ? 3000 :
+        effectiveMode === "deep" ? 5000 :
+        7000,
       reasoning_effort: reasoningEffort,
       reasoning_format: "hidden",
       messages: [
