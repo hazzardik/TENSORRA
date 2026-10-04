@@ -47,6 +47,12 @@ export function planRequest(args: {
     "мой стартап", "remember", "earlier", "my plan", "my goals", "my project",
   ]);
 
+  const personalDecisionSignals = includesAny(text, [
+    "для меня", "мне стоит", "мне лучше", "посоветуй мне", "мой проект",
+    "мой стартап", "мой план", "моя цель", "мои цели", "я хочу", "я планирую",
+    "for me", "should i", "my project", "my startup", "my plan", "my goal", "i want",
+  ]);
+
   const knowledgeSignals = includesAny(text, [
     "файл", "документ", "pdf", "в документе", "в файле", "прикреп",
     "этот материал", "эта презентация", "этот текст", "business idea", "документе",
@@ -82,13 +88,13 @@ export function planRequest(args: {
 
   const useWeb = explicitWeb || currentness;
   const useCode = codeSignals;
-  const useMemory = memorySignals;
+  const useMemory = memorySignals || personalDecisionSignals;
   const useKnowledge = args.hasAttachedDocument || knowledgeSignals;
   const extractMemory = durableMemorySignals;
 
   if (useWeb) reason.push("web");
   if (useCode) reason.push("code");
-  if (useMemory) reason.push("memory");
+  if (useMemory) reason.push(personalDecisionSignals ? "memory-context" : "memory");
   if (useKnowledge) reason.push("knowledge");
   if (extractMemory) reason.push("memory-write");
 
