@@ -106,3 +106,54 @@ python model-lab/compare_endpoints.py \
 ```
 
 The comparator writes both answers, latency and errors to JSONL. This does not replace the full Core eval because routing, memory, RAG and tools live above the raw checkpoint.
+
+
+## Phase 5 — candidate evaluation and promotion (implemented)
+
+TENSORRA now has a staged model registry with separate `production`,
+`candidate` and `shadow` model slots. Runtime production routing reads only
+the production slot; candidate configuration by itself cannot silently replace
+the live model.
+
+The private Supabase model registry stores candidate metadata, eval runs,
+per-case results and promotion events. Raw user prompts are not required in
+those tables; the held-out eval suite uses stable case ids.
+
+Run the stronger evaluator locally:
+
+```bash
+BASELINE_API_KEY=... \
+CANDIDATE_API_KEY=... \
+JUDGE_API_KEY=... \
+python model-lab/run_model_eval.py \
+  --baseline-url https://BASE/v1 \
+  --baseline-model openai/gpt-oss-20b \
+  --candidate-url https://CANDIDATE/v1 \
+  --candidate-model TENSORRA-20B-DPO-v1 \
+  --judge-url https://JUDGE/v1 \
+  --judge-model JUDGE_MODEL
+```
+
+The judge evaluates every pair twice with reversed answer order. This reduces
+simple position bias: baseline is A once and B once, candidate is B once and A
+once.
+
+Then run the hard promotion gate:
+
+```bash
+python model-lab/promotion_gate.py artifacts/model-eval-report.json
+```
+
+A candidate fails promotion if aggregate quality does not improve, decisive
+win rate is too low, safety regresses, study/math/coding/RAG quality regresses
+past the accepted budget, endpoint errors increase materially, or latency
+exceeds the configured budget.
+
+The same flow is available as the manual GitHub Actions workflow
+`TENSORRA Model Eval`. API keys are expected only through repository secrets:
+`TENSORRA_EVAL_BASELINE_API_KEY`,
+`TENSORRA_EVAL_CANDIDATE_API_KEY`, and
+`TENSORRA_EVAL_JUDGE_API_KEY`.
+
+Production promotion is still an explicit operation after a passing report.
+The application never promotes a checkpoint merely because it exists.
