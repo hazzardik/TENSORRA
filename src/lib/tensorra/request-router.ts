@@ -21,11 +21,31 @@ export function planRequest(args: {
   message: string;
   requestedMode: ThinkingMode;
   hasAttachedDocument: boolean;
+  recentContext?: string;
 }): RequestPlan {
   const text = args.message.toLocaleLowerCase();
+  const contextText = (args.recentContext ?? "").toLocaleLowerCase();
   const reason: string[] = [];
 
-  const explicitWeb = includesAny(text, [
+  const continuationSignals = includesAny(routedText, [
+    "а ", "а если", "а теперь", "а 20", "тогда", "так же", "также",
+    "сделай это", "сделай так", "давай", "продолж", "еще", "ещё",
+    "в pdf", "в пдф", "такой же", "тот же", "по этому", "из этих",
+    "what about", "then", "same", "continue", "do that",
+  ]);
+
+  const isLikelyContinuation =
+    text.length <= 320 &&
+    (
+      continuationSignals ||
+      /^[а-яa-z0-9 ,.!?+-]{1,80}$/i.test(text)
+    );
+
+  const routedText = isLikelyContinuation && contextText
+    ? `${contextText.slice(-5000)}\n${text}`
+    : text;
+
+  const explicitWeb = includesAny(routedText, [
     "найди в интернете", "поищи в интернете", "проверь в интернете", "в интернете",
     "официальный сайт", "актуальная информация", "актуально", "сегодня", "сейчас",
     "нынешн", "текущ", "последние новости", "новости", "последние данные",
@@ -33,36 +53,36 @@ export function planRequest(args: {
     "latest", "today", "current", "news", "search the web", "look up",
   ]);
 
-  const currentness = includesAny(text, [
+  const currentness = includesAny(routedText, [
     "сегодня", "сейчас", "на данный момент", "последн", "актуальн", "нынешн",
     "текущ", "новост", "кто сейчас", "какой сейчас", "сколько сейчас",
     "демоверси", "кодификатор", "спецификац", "current", "latest", "today",
   ]);
 
-  const codeSignals = includesAny(text, [
+  const codeSignals = includesAny(routedText, [
     "посчитай", "вычисли", "рассчитай", "процент", "статистик", "таблиц",
     "python", "код", "алгоритм", "csv", "данные", "график", "формула",
     "calculate", "compute", "python", "code", "dataset", "csv",
   ]);
 
-  const memorySignals = includesAny(text, [
+  const memorySignals = includesAny(routedText, [
     "помнишь", "мы обсуждали", "раньше", "до этого", "мой план", "мои цели",
     "мне нравится", "я предпочитаю", "как я говорил", "про меня", "мой проект",
     "мой стартап", "remember", "earlier", "my plan", "my goals", "my project",
   ]);
 
-  const personalDecisionSignals = includesAny(text, [
+  const personalDecisionSignals = includesAny(routedText, [
     "для меня", "мне стоит", "мне лучше", "посоветуй мне", "мой проект",
     "мой стартап", "мой план", "моя цель", "мои цели", "я хочу", "я планирую",
     "for me", "should i", "my project", "my startup", "my plan", "my goal", "i want",
   ]);
 
-  const knowledgeSignals = includesAny(text, [
+  const knowledgeSignals = includesAny(routedText, [
     "файл", "документ", "pdf", "в документе", "в файле", "прикреп",
     "этот материал", "эта презентация", "этот текст", "business idea", "документе",
   ]);
 
-  const durableMemorySignals = includesAny(text, [
+  const durableMemorySignals = includesAny(routedText, [
     "запомни", "помни что", "я предпочитаю", "мне нравится", "моя цель",
     "я планирую", "в будущем", "всегда отвечай", "не забывай",
     "remember", "my preference", "my goal", "i plan",
@@ -70,18 +90,18 @@ export function planRequest(args: {
 
 
   const studyGeneration = (
-    includesAny(text, [
+    includesAny(routedText, [
       "егэ", "огэ", "фипи", "вариант", "пробник", "тренировочн",
       "домашн", "контрольн", "тест", "задани", "study guide", "mock exam",
       "practice test",
     ]) &&
-    includesAny(text, [
+    includesAny(routedText, [
       "состав", "созда", "сделай", "подготов", "сгенер", "придум",
       "собери", "generate", "create", "make",
     ])
   );
 
-  const exportFormat: "pdf" | null = includesAny(text, [
+  const exportFormat: "pdf" | null = includesAny(routedText, [
     "в pdf", "в пдф", "pdf-файл", "pdf файл", "скинь pdf", "скинь в pdf",
     "download pdf", "as pdf",
   ]) ? "pdf" : null;
@@ -119,10 +139,15 @@ export function planRequest(args: {
     reason.push(`manual-mode:${args.requestedMode}`);
   }
 
-  const useWeb = explicitWeb || currentness || (studyGeneration && text.includes("фипи"));
+  const yearReference = /\b20(?:2\d|3\d)\b/.test(text);
+  const useWeb =
+    explicitWeb ||
+    currentness ||
+    (studyGeneration && routedText.includes("фипи")) ||
+    (studyGeneration && yearReference);
   const useCode =
     codeSignals ||
-    (studyGeneration && includesAny(text, [
+    (studyGeneration && includesAny(routedText, [
       "математ", "алгебр", "геометр", "вероятност", "статист", "физик",
       "math", "algebra", "geometry", "probability", "statistics", "physics",
     ]));
@@ -136,6 +161,7 @@ export function planRequest(args: {
   if (useKnowledge) reason.push("knowledge");
   if (extractMemory) reason.push("memory-write");
   if (studyGeneration) reason.push("study-generation");
+  if (isLikelyContinuation && contextText) reason.push("contextual-follow-up");
   if (exportFormat) reason.push(`export:${exportFormat}`);
 
   return {
