@@ -1,3 +1,4 @@
+import { productionModelFor } from "./model-registry";
 export type ThinkingMode = "auto" | "fast" | "balanced" | "deep" | "max";
 export type ConcreteThinkingMode = Exclude<ThinkingMode, "auto">;
 
@@ -10,8 +11,8 @@ export type ModelConfig = {
   verify: boolean;
 };
 
-const FAST_MODEL = process.env.TENSORRA_FAST_MODEL ?? "openai/gpt-oss-20b";
-const DEEP_MODEL = process.env.TENSORRA_DEEP_MODEL ?? "openai/gpt-oss-120b";
+const FAST_MODEL = productionModelFor("fast");
+const DEEP_MODEL = productionModelFor("deep");
 
 export const THINKING_MODES: Record<ConcreteThinkingMode, ModelConfig> = {
   fast: {
