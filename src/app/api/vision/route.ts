@@ -70,12 +70,25 @@ export async function POST(request: Request) {
     return new Response("Размер изображения не должен превышать 8 МБ.", { status: 413 });
   }
 
-  const { data: chat, error: chatError } = await supabase
-    .from("chats")
-    .select("id,title,mode")
-    .eq("id", chatId)
-    .eq("user_id", userId)
-    .single();
+  const [
+    { data: chat, error: chatError },
+    { data: safetyContextRows },
+  ] = await Promise.all([
+    supabase
+      .from("chats")
+      .select("id,title,mode")
+      .eq("id", chatId)
+      .eq("user_id", userId)
+      .single(),
+    supabase
+      .from("messages")
+      .select("content")
+      .eq("chat_id", chatId)
+      .eq("user_id", userId)
+      .eq("role", "user")
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ]);
   if (chatError || !chat) return new Response("Чат не найден.", { status: 404 });
 
   const requestedMode = normalizeThinkingMode(
@@ -89,7 +102,12 @@ export async function POST(request: Request) {
     ? autoDecision.mode
     : requestedMode;
   const reasoningEffort = reasoningForMode(effectiveMode);
-  const safetyDecision = evaluateSafetyRequest(message);
+  const safetyUserContext = ((safetyContextRows ?? []) as Array<{ content: string }>)
+    .reverse()
+    .map((item) => item.content)
+    .join("\n")
+    .slice(-4000);
+  const safetyDecision = evaluateSafetyRequest(message, safetyUserContext);
 
   if (safetyDecision.action === "block") {
     await supabase.from("messages").insert([
