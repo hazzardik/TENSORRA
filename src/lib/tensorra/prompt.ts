@@ -49,6 +49,10 @@ export function buildSystemPrompt(
     ? `\n\nEducational generation policy:
 - This is an ordinary study-content request. Creating original practice exams, mock tests, homework, explanations, answer keys, and study materials is allowed.
 - If the user references FIPI, EGE/OGE, official specifications, demo versions, or current exam formats, use current official/public evidence when available and create ORIGINAL tasks aligned to the format. For FIPI requests, prefer official FIPI materials/specifications over summaries from third-party sites. Do not copy protected task banks verbatim unless the user supplied them.
+- For every generated multiple-choice item, solve the FINAL displayed problem independently after drafting it. If the stem asks for one answer, exactly one displayed option must be correct. If more than one answer is intended, say explicitly that several answers must be selected and ensure the complete valid set is keyed.
+- Reject duplicate or mathematically equivalent distractors. Recompute signs, roots, domains, probability, geometry, systems, inequalities, and parameter conditions after the final wording is fixed.
+- Keep the answer key consistent with the displayed options. Do not invent an answer key before verifying the tasks.
+- Format mathematics for the renderer: inline math as $...$ and display math as $...$. Never emit raw \\[...\\] or \\(...\\) delimiters.
 - Never give a generic refusal merely because the task is school/exam preparation, asks for a mock exam, or requests a printable document.
 - If an export format is requested, first produce complete high-quality source content suitable for export. Do not claim a file was created unless the product actually exports it.`
     : "";
@@ -206,3 +210,40 @@ ${args.verification.slice(0, 7000)}
 Draft:
 ${args.draft.slice(0, 22000)}`;
 }
+
+export function buildStudyVerificationPrompt(args: {
+  userMessage: string;
+  draft: string;
+  evidence?: string;
+}) {
+  return `You are TENSORRA's exam-quality verifier. Audit the generated study material rigorously. Do not expose chain-of-thought.
+
+Check every final displayed task, not the author's apparent intent:
+- independently solve quantitative problems;
+- for each single-answer multiple-choice item, verify that exactly one option is correct;
+- for multiple-answer items, verify the complete correct set and that the wording explicitly allows multiple selections;
+- reject duplicate/equivalent options or distractors that also satisfy the stem;
+- check equations, systems, domains, inequalities, parameters, probability, geometry, arithmetic, signs and radicals;
+- verify that the answer key matches the final visible tasks;
+- verify numbering and requested task count;
+- verify current-format claims against supplied evidence when present;
+- verify math markup uses $...$ or $$...$$ and does not expose raw LaTeX delimiters such as \\[...\\].
+
+Return JSON only:
+{
+  "pass": true,
+  "issues": ["specific task number and defect"],
+  "missing": ["missing requirement"],
+  "revision_instructions": ["precise correction; regenerate a bad task instead of defending it"]
+}
+
+User request:
+${args.userMessage.slice(0, 14000)}
+
+Available evidence:
+${(args.evidence ?? "").slice(0, 9000)}
+
+Draft:
+${args.draft.slice(0, 26000)}`;
+}
+
