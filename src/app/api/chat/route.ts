@@ -959,7 +959,113 @@ export async function POST(request: Request) {
     let postVerified = false;
     let verifierRevised = false;
 
-    if (effectiveMode === "max") {
+    if (plan.studyGeneration && effectiveMode !== "max") {
+    const {
+      response: upstream,
+      modelUsed,
+      fellBack,
+      retried,
+    } = await providerFetch({
+      baseUrl: provider.baseUrl,
+      apiKey: provider.apiKey,
+      payload: { ...basePayload, stream: false },
+      signal: request.signal,
+    });
+
+    if (!upstream.ok) return providerError(upstream);
+
+    const data = await upstream.json().catch(() => null) as {
+      choices?: Array<{ message?: { content?: string | null } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    } | null;
+
+    let answer = data?.choices?.[0]?.message?.content?.trim() ?? "";
+    if (!answer) {
+      return new Response("Модель вернула пустой ответ.", { status: 502 });
+    }
+
+    if (looksLikeFalseRefusal(answer)) {
+      const recovered = await recoverBenignStudyAnswer({
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        basePayload,
+        signal: request.signal,
+      }).catch(() => "");
+
+      if (recovered) answer = recovered;
+    }
+
+    await saveAssistantMessage({
+      supabase,
+      userId,
+      chatId,
+      content: answer,
+      modelName: modelUsed,
+      requestedMode,
+      effectiveMode,
+      reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+      verified: false,
+      toolsEnabled: [],
+      routerReason: plan.reason,
+      fellBack,
+      retried,
+      complexityScore: plan.complexityScore,
+      exportFormat: plan.exportFormat,
+      plannerUsed: Boolean(planningBrief),
+      contextSummaryUsed: Boolean(contextSummary),
+    });
+
+    await supabase.from("usage_events").insert({
+      user_id: userId,
+      chat_id: chatId,
+      event_type: "completion",
+      provider: provider.providerName,
+      model_name: modelUsed,
+      input_tokens: data?.usage?.prompt_tokens ?? null,
+      output_tokens: data?.usage?.completion_tokens ?? null,
+      latency_ms: Date.now() - startedAt,
+      metadata: {
+        requested_mode: requestedMode,
+        effective_mode: effectiveMode,
+        router_reason: plan.reason,
+        fallback: fellBack,
+        retried,
+        complexity_score: plan.complexityScore,
+        billing_plan: billingPlan,
+        planner_used: Boolean(planningBrief),
+        context_summary_used: Boolean(contextSummary),
+        study_generation: true,
+        export_format: plan.exportFormat,
+      },
+    });
+
+    if (plan.extractMemory && !explicitMemory) {
+      await extractDurableMemories(message, explicitMemory, {
+        supabase,
+        userId,
+        chatId,
+      });
+    }
+
+    return new Response(responseStreamFromText(answer), {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+        "X-Tensorra-Mode": effectiveMode,
+        "X-Tensorra-Model": modelUsed,
+        "X-Tensorra-Fallback": fellBack ? "1" : "0",
+        "X-Tensorra-Retry": retried ? "1" : "0",
+        "X-Tensorra-Complexity": String(plan.complexityScore),
+        "X-Tensorra-Export": plan.exportFormat ?? "",
+        "X-Tensorra-Planner": planningBrief ? "1" : "0",
+        "X-Tensorra-Verified": "0",
+        "X-Tensorra-Revised": "0",
+      },
+    });
+  }
+
+  if (effectiveMode === "max") {
       const evidence = executedTools
         .flatMap((tool) => [
           ...(tool.search_results?.results ?? []).map((item) => ({
