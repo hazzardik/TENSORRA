@@ -8,6 +8,8 @@ export type RequestPlan = {
   useMemory: boolean;
   useKnowledge: boolean;
   extractMemory: boolean;
+  studyGeneration: boolean;
+  exportFormat: "pdf" | null;
   complexityScore: number;
   reason: string[];
 };
@@ -26,13 +28,15 @@ export function planRequest(args: {
   const explicitWeb = includesAny(text, [
     "найди в интернете", "поищи в интернете", "проверь в интернете", "в интернете",
     "официальный сайт", "актуальная информация", "актуально", "сегодня", "сейчас",
-    "последние новости", "новости", "последние данные", "курс", "цена сейчас",
+    "нынешн", "текущ", "последние новости", "новости", "последние данные",
+    "фипи", "егэ 2026", "егэ 2027", "демоверси", "кодификатор", "спецификац",
     "latest", "today", "current", "news", "search the web", "look up",
   ]);
 
   const currentness = includesAny(text, [
-    "сегодня", "сейчас", "на данный момент", "последн", "актуальн", "новост",
-    "кто сейчас", "какой сейчас", "сколько сейчас", "current", "latest", "today",
+    "сегодня", "сейчас", "на данный момент", "последн", "актуальн", "нынешн",
+    "текущ", "новост", "кто сейчас", "какой сейчас", "сколько сейчас",
+    "демоверси", "кодификатор", "спецификац", "current", "latest", "today",
   ]);
 
   const codeSignals = includesAny(text, [
@@ -64,6 +68,24 @@ export function planRequest(args: {
     "remember", "my preference", "my goal", "i plan",
   ]);
 
+
+  const studyGeneration = (
+    includesAny(text, [
+      "егэ", "огэ", "фипи", "вариант", "пробник", "тренировочн",
+      "домашн", "контрольн", "тест", "задани", "study guide", "mock exam",
+      "practice test",
+    ]) &&
+    includesAny(text, [
+      "состав", "созда", "сделай", "подготов", "сгенер", "придум",
+      "собери", "generate", "create", "make",
+    ])
+  );
+
+  const exportFormat: "pdf" | null = includesAny(text, [
+    "в pdf", "в пдф", "pdf-файл", "pdf файл", "скинь pdf", "скинь в pdf",
+    "download pdf", "as pdf",
+  ]) ? "pdf" : null;
+
   const autoDecision = resolveAutoThinkingDecision(
     args.message,
     { hasAttachment: args.hasAttachedDocument },
@@ -86,7 +108,7 @@ export function planRequest(args: {
     reason.push(`manual-mode:${args.requestedMode}`);
   }
 
-  const useWeb = explicitWeb || currentness;
+  const useWeb = explicitWeb || currentness || (studyGeneration && text.includes("фипи"));
   const useCode = codeSignals;
   const useMemory = memorySignals || personalDecisionSignals;
   const useKnowledge = args.hasAttachedDocument || knowledgeSignals;
@@ -97,6 +119,8 @@ export function planRequest(args: {
   if (useMemory) reason.push(personalDecisionSignals ? "memory-context" : "memory");
   if (useKnowledge) reason.push("knowledge");
   if (extractMemory) reason.push("memory-write");
+  if (studyGeneration) reason.push("study-generation");
+  if (exportFormat) reason.push(`export:${exportFormat}`);
 
   return {
     effectiveMode,
@@ -105,6 +129,8 @@ export function planRequest(args: {
     useMemory,
     useKnowledge,
     extractMemory,
+    studyGeneration,
+    exportFormat,
     complexityScore,
     reason,
   };
