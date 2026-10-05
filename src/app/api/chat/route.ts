@@ -383,6 +383,7 @@ async function saveAssistantMessage(args: {
   contextSummaryUsed?: boolean;
   verifierUsed?: boolean;
   verifierRevised?: boolean;
+  exportFormat?: "pdf" | null;
   sources?: ResearchSource[];
 }) {
   await args.supabase.from("messages").insert({
@@ -405,6 +406,7 @@ async function saveAssistantMessage(args: {
       context_summary_used: Boolean(args.contextSummaryUsed),
       verifier_used: Boolean(args.verifierUsed),
       verifier_revised: Boolean(args.verifierRevised),
+      export_format: args.exportFormat ?? null,
       sources: args.sources ?? [],
     },
   });
@@ -801,6 +803,8 @@ export async function POST(request: Request) {
         autonomousTools: true,
         planningBrief,
         contextSummary,
+        studyGeneration: plan.studyGeneration,
+        exportFormat: plan.exportFormat,
       },
     ),
     thinkingInstructionForMode(effectiveMode),
@@ -936,6 +940,7 @@ export async function POST(request: Request) {
       fellBack,
       retried,
       complexityScore: plan.complexityScore,
+      exportFormat: plan.exportFormat,
       plannerUsed: Boolean(planningBrief),
       contextSummaryUsed: Boolean(contextSummary),
       verifierUsed: effectiveMode === "max",
@@ -1007,6 +1012,7 @@ export async function POST(request: Request) {
         "X-Tensorra-Fallback": fellBack ? "1" : "0",
         "X-Tensorra-Retry": retried ? "1" : "0",
         "X-Tensorra-Complexity": String(plan.complexityScore),
+        "X-Tensorra-Export": plan.exportFormat ?? "",
         "X-Tensorra-Planner": planningBrief ? "1" : "0",
         "X-Tensorra-Verified": postVerified ? "1" : "0",
         "X-Tensorra-Revised": verifierRevised ? "1" : "0",
@@ -1074,6 +1080,7 @@ export async function POST(request: Request) {
       fellBack,
       retried,
       complexityScore: plan.complexityScore,
+      exportFormat: plan.exportFormat,
       plannerUsed: Boolean(planningBrief),
       contextSummaryUsed: Boolean(contextSummary),
       verifierUsed: true,
@@ -1123,6 +1130,7 @@ export async function POST(request: Request) {
         "X-Tensorra-Fallback": fellBack ? "1" : "0",
         "X-Tensorra-Retry": retried ? "1" : "0",
         "X-Tensorra-Complexity": String(plan.complexityScore),
+        "X-Tensorra-Export": plan.exportFormat ?? "",
         "X-Tensorra-Planner": planningBrief ? "1" : "0",
         "X-Tensorra-Verified": verificationResult.verified ? "1" : "0",
         "X-Tensorra-Revised": verificationResult.revised ? "1" : "0",
@@ -1203,6 +1211,7 @@ export async function POST(request: Request) {
           fellBack,
           retried,
           complexityScore: plan.complexityScore,
+          exportFormat: plan.exportFormat,
           plannerUsed: Boolean(planningBrief),
           contextSummaryUsed: Boolean(contextSummary),
         });
@@ -1260,6 +1269,7 @@ export async function POST(request: Request) {
           fellBack,
           retried,
           complexityScore: plan.complexityScore,
+          exportFormat: plan.exportFormat,
           plannerUsed: Boolean(planningBrief),
           contextSummaryUsed: Boolean(contextSummary),
         }).catch(() => undefined);
