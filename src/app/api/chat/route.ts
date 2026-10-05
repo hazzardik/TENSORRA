@@ -914,6 +914,18 @@ export async function POST(request: Request) {
       return new Response("Модель вернула пустой ответ.", { status: 502 });
     }
 
+    if (plan.studyGeneration && looksLikeFalseRefusal(answer)) {
+      const recovered = await recoverBenignStudyAnswer({
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        basePayload,
+        tools,
+        signal: request.signal,
+      }).catch(() => "");
+
+      if (recovered) answer = recovered;
+    }
+
     const executedTools = data?.choices?.[0]?.message?.executed_tools ?? [];
     const sourceMap = new Map<string, ResearchSource>();
 
@@ -1098,9 +1110,20 @@ export async function POST(request: Request) {
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     } | null;
 
-    const draft = data?.choices?.[0]?.message?.content?.trim() ?? "";
+    let draft = data?.choices?.[0]?.message?.content?.trim() ?? "";
     if (!draft) {
       return new Response("Модель вернула пустой ответ.", { status: 502 });
+    }
+
+    if (plan.studyGeneration && looksLikeFalseRefusal(draft)) {
+      const recovered = await recoverBenignStudyAnswer({
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        basePayload,
+        signal: request.signal,
+      }).catch(() => "");
+
+      if (recovered) draft = recovered;
     }
 
     const verificationResult = await verifyAndReviseAnswer({
