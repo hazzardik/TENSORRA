@@ -25,8 +25,9 @@ export default function LandingPage() {
           для разных задач.
         </h1>
         <p className="landingLead">
-          Быстрый ответ, глубокий разбор или максимальная проверка — TENSORRA меняет
-          модель и глубину под задачу, а веб, файлы, вычисления и память подключает сама.
+          Быстрый ответ, глубокий разбор или максимальная проверка — TENSORRA
+          маршрутизирует задачу через собственное ядро, подключая память, веб,
+          вычисления, файлы и проверку ответа только когда это действительно нужно.
         </p>
 
         <div className="landingCtas">
@@ -37,7 +38,7 @@ export default function LandingPage() {
         <div className="heroStatus">
           <span><i /> Автовыбор глубины</span>
           <span><i /> Умный веб-поиск</span>
-          <span><i /> Работа с PDF</span>
+          <span><i /> Чтение и экспорт PDF</span>
           <span><i /> На разных устройствах</span>
         </div>
       </section>
@@ -63,10 +64,10 @@ export default function LandingPage() {
 
         <article>
           <span className="featureIndex">03</span>
-          <h2>Документы и изображения</h2>
+          <h2>Файлы и готовые артефакты</h2>
           <p>
-            Прикрепляйте PDF, текстовые файлы и изображения прямо к сообщению.
-            TENSORRA сама определит тип файла и способ обработки.
+            Прикрепляйте PDF, текст и изображения. TENSORRA разбирает содержимое,
+            а документные ответы можно экспортировать в готовый PDF прямо из чата.
           </p>
         </article>
 
@@ -83,15 +84,15 @@ export default function LandingPage() {
       <section className="architectureBand">
         <div>
           <p className="eyebrow">ЯДРО TENSORRA</p>
-          <h2>Один интерфейс. Умный роутер выбирает нужные возможности.</h2>
+          <h2>Не просто модель. Ядро планирует, подключает инструменты и проверяет ответ.</h2>
         </div>
 
         <div className="architectureFlow">
-          <span>Интерфейс</span><b>→</b>
-          <span>Роутер</span><b>→</b>
-          <span>Контекст</span><b>→</b>
-          <span>Инструменты</span><b>→</b>
-          <span>Модели</span>
+          <span>Router</span><b>→</b>
+          <span>Planner</span><b>→</b>
+          <span>Память + Tools</span><b>→</b>
+          <span>Model</span><b>→</b>
+          <span>Verify</span>
         </div>
       </section>
 
