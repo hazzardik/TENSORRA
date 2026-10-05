@@ -711,6 +711,7 @@ export async function POST(request: Request) {
   const [
     { data: chat, error: chatError },
     { data: subscription },
+    { data: routeContext },
   ] = await Promise.all([
     supabase
       .from("chats")
@@ -723,6 +724,14 @@ export async function POST(request: Request) {
       .select("plan,status")
       .eq("user_id", userId)
       .maybeSingle(),
+    supabase
+      .from("messages")
+      .select("role,content")
+      .eq("chat_id", chatId)
+      .eq("user_id", userId)
+      .in("role", ["user", "assistant"])
+      .order("created_at", { ascending: false })
+      .limit(8),
   ]);
 
   const billingPlan = normalizePlan(subscription?.plan);
@@ -747,15 +756,32 @@ export async function POST(request: Request) {
     (doc: { id: string }) => doc.id,
   );
 
+  const routeMessages = ((routeContext ?? []) as Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>).reverse();
+
+  const routingContext = routeMessages
+    .map((item) => `${item.role}: ${item.content}`)
+    .join("\n")
+    .slice(-6000);
+
+  const safetyUserContext = routeMessages
+    .filter((item) => item.role === "user")
+    .map((item) => item.content)
+    .join("\n")
+    .slice(-4000);
+
   const plan = planRequest({
     message,
     requestedMode,
     hasAttachedDocument: verifiedDocumentIds.length > 0,
+    recentContext: routingContext,
   });
 
   const effectiveMode = plan.effectiveMode;
   const modelConfig = THINKING_MODES[effectiveMode];
-  const safetyDecision = evaluateSafetyRequest(message);
+  const safetyDecision = evaluateSafetyRequest(message, safetyUserContext);
 
   const { error: insertError } = await supabase.from("messages").insert({
     chat_id: chatId,
