@@ -959,7 +959,7 @@ export async function POST(request: Request) {
     let postVerified = false;
     let verifierRevised = false;
 
-    if (plan.studyGeneration && effectiveMode !== "max") {
+    if ((plan.studyGeneration || plan.exportFormat === "pdf") && effectiveMode !== "max") {
     const {
       response: upstream,
       modelUsed,
