@@ -1482,40 +1482,46 @@ export async function POST(request: Request) {
 
         controller.close();
       } catch (error) {
-        const suffix = complete.trim()
-          ? "\n\n⚠️ Ответ модели прервался. Частичный ответ сохранён — можно повторить запрос."
-          : "⚠️ Соединение с моделью прервалось. Попробуй повторить запрос через несколько секунд.";
-        const interruptedContent = complete.trim()
-          ? `${complete}${suffix}`
-          : suffix;
+        let recovered = "";
+        if (!request.signal.aborted) {
+          recovered = await continueInterruptedAnswer({
+            baseUrl: provider.baseUrl,
+            apiKey: provider.apiKey,
+            basePayload,
+            partial: complete,
+            signal: request.signal,
+          }).catch(() => "");
+        }
 
-        controller.enqueue(encoder.encode(suffix));
+        if (recovered) {
+          const joiner = complete.trim() ? "\n\n" : "";
+          const recoveredContent = `${complete}${joiner}${recovered}`;
+          controller.enqueue(encoder.encode(`${joiner}${recovered}`));
 
-        await saveAssistantMessage({
-          supabase,
-          userId,
-          chatId,
-          content: interruptedContent,
-          modelName: modelUsed,
-          requestedMode,
-          effectiveMode,
-          reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
-          verified: false,
-          toolsEnabled: [],
-          routerReason: [...plan.reason, "stream_interrupted"],
-          fellBack,
-          retried,
-          complexityScore: plan.complexityScore,
-          exportFormat: plan.exportFormat,
-          plannerUsed: Boolean(planningBrief),
-          contextSummaryUsed: Boolean(contextSummary),
-        }).catch(() => undefined);
+          await saveAssistantMessage({
+            supabase,
+            userId,
+            chatId,
+            content: recoveredContent,
+            modelName: modelUsed,
+            requestedMode,
+            effectiveMode,
+            reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+            verified: false,
+            toolsEnabled: [],
+            routerReason: [...plan.reason, "stream_auto_recovered"],
+            fellBack,
+            retried: true,
+            complexityScore: plan.complexityScore,
+            exportFormat: plan.exportFormat,
+            plannerUsed: Boolean(planningBrief),
+            contextSummaryUsed: Boolean(contextSummary),
+          }).catch(() => undefined);
 
-        try {
           await supabase.from("usage_events").insert({
             user_id: userId,
             chat_id: chatId,
-            event_type: "completion_interrupted",
+            event_type: "completion_recovered",
             provider: provider.providerName,
             model_name: modelUsed,
             latency_ms: Date.now() - startedAt,
@@ -1523,16 +1529,71 @@ export async function POST(request: Request) {
               requested_mode: requestedMode,
               effective_mode: effectiveMode,
               router_reason: plan.reason,
-              fallback: fellBack,
               partial_chars: complete.length,
-              error: error instanceof Error ? error.message.slice(0, 500) : "stream_error",
+              recovered_chars: recovered.length,
             },
-          });
-        } catch {
-          // Ошибка телеметрии не должна ломать восстановление пользовательского ответа.
-        }
+          }).catch(() => undefined);
 
-        controller.close();
+          controller.close();
+        } else {
+          const suffix = request.signal.aborted
+            ? "\n\n⏹ Генерация остановлена."
+            : complete.trim()
+              ? "\n\n⚠️ Соединение оборвалось. Частичный ответ сохранён."
+              : "⚠️ Соединение с моделью прервалось. Попробуй повторить запрос.";
+
+          const interruptedContent = complete.trim()
+            ? `${complete}${suffix}`
+            : suffix;
+
+          if (!request.signal.aborted) {
+            controller.enqueue(encoder.encode(suffix));
+          }
+
+          await saveAssistantMessage({
+            supabase,
+            userId,
+            chatId,
+            content: interruptedContent,
+            modelName: modelUsed,
+            requestedMode,
+            effectiveMode,
+            reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+            verified: false,
+            toolsEnabled: [],
+            routerReason: [...plan.reason, "stream_interrupted"],
+            fellBack,
+            retried,
+            complexityScore: plan.complexityScore,
+            exportFormat: plan.exportFormat,
+            plannerUsed: Boolean(planningBrief),
+            contextSummaryUsed: Boolean(contextSummary),
+          }).catch(() => undefined);
+
+          try {
+            await supabase.from("usage_events").insert({
+              user_id: userId,
+              chat_id: chatId,
+              event_type: "completion_interrupted",
+              provider: provider.providerName,
+              model_name: modelUsed,
+              latency_ms: Date.now() - startedAt,
+              metadata: {
+                requested_mode: requestedMode,
+                effective_mode: effectiveMode,
+                router_reason: plan.reason,
+                fallback: fellBack,
+                partial_chars: complete.length,
+                aborted: request.signal.aborted,
+                error: error instanceof Error ? error.message.slice(0, 500) : "stream_error",
+              },
+            });
+          } catch {
+            // Ошибка телеметрии не должна ломать сохранение ответа.
+          }
+
+          controller.close();
+        }
       } finally {
         reader.releaseLock();
       }
