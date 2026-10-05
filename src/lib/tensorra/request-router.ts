@@ -27,19 +27,19 @@ export function planRequest(args: {
   const contextText = (args.recentContext ?? "").toLocaleLowerCase();
   const reason: string[] = [];
 
-  const continuationSignals = includesAny(routedText, [
-    "а ", "а если", "а теперь", "а 20", "тогда", "так же", "также",
-    "сделай это", "сделай так", "давай", "продолж", "еще", "ещё",
+  const continuationSignals = includesAny(text, [
+    "а если", "а теперь", "а 20", "тогда", "так же", "также",
+    "сделай это", "сделай так", "продолж", "еще", "ещё",
     "в pdf", "в пдф", "такой же", "тот же", "по этому", "из этих",
     "what about", "then", "same", "continue", "do that",
   ]);
 
+  const continuationStart =
+    /^(?:а\b|и\b|да\b|нет\b|тогда\b|ещ[её]\b|продолж|сделай|добавь|измени|переделай|так\s*же|также|тот\s*же|такой\s*же|в\s+(?:pdf|пдф))/i.test(text.trim());
+
   const isLikelyContinuation =
     text.length <= 320 &&
-    (
-      continuationSignals ||
-      /^[а-яa-z0-9 ,.!?+-]{1,80}$/i.test(text)
-    );
+    (continuationSignals || continuationStart);
 
   const routedText = isLikelyContinuation && contextText
     ? `${contextText.slice(-5000)}\n${text}`
