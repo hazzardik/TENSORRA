@@ -8,6 +8,7 @@ import {
 } from "@/lib/tensorra/model-router";
 import { buildSystemPrompt } from "@/lib/tensorra/prompt";
 import { providerConfig } from "@/lib/tensorra/provider";
+import { evaluateSafetyRequest } from "@/lib/tensorra/safety-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,6 +88,60 @@ export async function POST(request: Request) {
     ? autoDecision.mode
     : requestedMode;
   const reasoningEffort = reasoningForMode(effectiveMode);
+  const safetyDecision = evaluateSafetyRequest(message);
+
+  if (safetyDecision.action === "block") {
+    await supabase.from("messages").insert([
+      {
+        chat_id: chatId,
+        user_id: userId,
+        role: "user",
+        content: message,
+        metadata: {
+          vision: true,
+          image_filename: image.name.slice(0, 240),
+          safety_action: "block",
+          safety_category: safetyDecision.category,
+        },
+      },
+      {
+        chat_id: chatId,
+        user_id: userId,
+        role: "assistant",
+        content: safetyDecision.response,
+        model_name: "tensorra-policy-gate",
+        metadata: {
+          vision: true,
+          safety_action: "block",
+          safety_category: safetyDecision.category,
+          requested_mode: requestedMode,
+          effective_mode: effectiveMode,
+          verified: true,
+        },
+      },
+    ]);
+
+    await supabase.from("chats").update({
+      title: chat.title === "New chat" || chat.title === "Новый чат"
+        ? createChatTitle(message)
+        : chat.title,
+      mode: requestedMode,
+      updated_at: new Date().toISOString(),
+    }).eq("id", chatId).eq("user_id", userId);
+
+    return new Response(streamText(safetyDecision.response), {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+        "X-Tensorra-Mode": effectiveMode,
+        "X-Tensorra-Model": "tensorra-policy-gate",
+        "X-Tensorra-Safety": "block",
+        "X-Tensorra-Safety-Category": safetyDecision.category,
+        "X-Tensorra-Verified": "1",
+      },
+    });
+  }
 
   const [{ data: history }, { data: memories }] = await Promise.all([
     supabase
