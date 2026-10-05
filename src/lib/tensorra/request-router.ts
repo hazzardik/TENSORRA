@@ -82,7 +82,7 @@ export function planRequest(args: {
     "этот материал", "эта презентация", "этот текст", "business idea", "документе",
   ]);
 
-  const durableMemorySignals = includesAny(routedText, [
+  const durableMemorySignals = includesAny(text, [
     "запомни", "помни что", "я предпочитаю", "мне нравится", "моя цель",
     "я планирую", "в будущем", "всегда отвечай", "не забывай",
     "remember", "my preference", "my goal", "i plan",
