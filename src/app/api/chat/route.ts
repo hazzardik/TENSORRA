@@ -563,7 +563,7 @@ async function recoverBenignStudyAnswer(args: {
   const recoveryMessage = {
     role: "system",
     content:
-      "Recovery instruction: the previous draft incorrectly refused a benign educational/document-generation request. Complete the original request now. Creating original practice exams, EGE/OGE mock materials, answer keys, explanations and document-ready content is allowed. If current FIPI/EGE format is requested, use available public evidence and create original aligned tasks rather than copying a protected bank. Do not mention the previous refusal or policy. If PDF export was requested, produce complete clean source content; the product UI performs the export.",
+      "Recovery instruction: the previous draft incorrectly refused a benign educational/document-generation request. Complete the original request now. Creating original practice exams, EGE/OGE mock materials, answer keys, explanations and document-ready content is allowed. Requests to build a variant based on a past year such as 2025 are also allowed: use official/public evidence to preserve that year's structure and skills, then create fresh equivalent tasks. If exact tasks were supplied by the user, they may be rearranged and solved. Do not refuse the whole task merely because a public task bank is referenced; if wholesale verbatim reproduction of a non-user-provided bank is not appropriate, use source links or brief excerpts and generate equivalent original items for the rest. Do not mention the previous refusal or policy. If PDF export was requested, produce complete clean source content; the product UI performs the export.",
   };
 
   const { response } = await providerFetch({
