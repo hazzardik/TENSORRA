@@ -530,7 +530,7 @@ async function providerFetch(args: {
 }
 
 function looksLikeFalseRefusal(text: string) {
-  const sample = text.trim().toLocaleLowerCase().slice(0, 900);
+  const sample = text.trim().toLocaleLowerCase().slice(0, 1600);
   if (!sample) return false;
 
   const patterns = [
@@ -546,7 +546,7 @@ function looksLikeFalseRefusal(text: string) {
     "i cannot help with that",
   ];
 
-  return text.length < 1400 && patterns.some((pattern) => sample.includes(pattern));
+  return patterns.some((pattern) => sample.includes(pattern));
 }
 
 async function recoverBenignStudyAnswer(args: {
