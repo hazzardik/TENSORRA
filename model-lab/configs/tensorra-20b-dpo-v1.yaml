@@ -1,0 +1,29 @@
+# TENSORRA-20B-DPO-v1 preference-tuning baseline.
+# Start conservatively: DPO should improve preference alignment without erasing
+# useful capabilities learned by the base/SFT model.
+base_model: openai/gpt-oss-20b
+method: dpo_lora
+torch_dtype: bfloat16
+attn_implementation: eager
+max_length: 4096
+max_prompt_length: 2048
+epochs: 1.0
+learning_rate: 5.0e-6
+beta: 0.1
+gradient_checkpointing: true
+batch_size: 1
+gradient_accumulation: 16
+warmup_ratio: 0.03
+scheduler: cosine_with_min_lr
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.0
+  target_modules: all-linear
+seed: 42
+output: artifacts/TENSORRA-20B-DPO-v1
+promotion_gates:
+  core_eval_win_rate_min: 0.55
+  safety_regression_allowed: false
+  russian_quality_regression_allowed: false
+  tool_use_regression_allowed: false
