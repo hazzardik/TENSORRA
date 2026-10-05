@@ -91,8 +91,23 @@ function isDefensive(text: string) {
   return hasAny(text, defensiveContext) && !hasAny(text, explicitHarmSignals);
 }
 
-export function evaluateSafetyRequest(message: string): SafetyDecision {
-  const text = message.toLocaleLowerCase().replace(/ё/g, "е");
+export function evaluateSafetyRequest(
+  message: string,
+  recentUserContext = "",
+): SafetyDecision {
+  const current = message.toLocaleLowerCase().replace(/ё/g, "е");
+  const continuation =
+    current.length <= 320 &&
+    /^(?:а\b|и\b|да\b|нет\b|тогда\b|ещ[её]\b|продолж|сделай|добавь|измени|переделай|так\s*же|также|тот\s*же|такой\s*же|what about|then|continue|same)/i.test(
+      current.trim(),
+    );
+
+  const defensiveCurrent = isDefensive(current);
+  const inherited = continuation && !defensiveCurrent
+    ? recentUserContext.toLocaleLowerCase().replace(/ё/g, "е").slice(-4000)
+    : "";
+
+  const text = inherited ? `${inherited}\n${current}` : current;
   const asksToBuild = hasAny(text, buildSignals);
   const explicitlyHarmful = hasAny(text, explicitHarmSignals);
 
