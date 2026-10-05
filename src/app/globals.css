@@ -2256,3 +2256,146 @@ body{
     width:100%;
   }
 }
+
+
+/* ========================================================================== */
+/* TENSORRA v0.16 — input polish, clean chat titles, artifact actions          */
+/* ========================================================================== */
+
+.composer textarea,
+.composer textarea:focus,
+.composer textarea:focus-visible,
+.composer textarea:active{
+  outline:0 !important;
+  border:0 !important;
+  box-shadow:none !important;
+  background:transparent !important;
+  -webkit-appearance:none;
+  appearance:none;
+}
+
+.composer:focus-within{
+  border-color:rgba(255,255,255,.10) !important;
+  box-shadow:
+    0 18px 54px rgba(0,0,0,.32),
+    inset 0 1px 0 rgba(255,255,255,.03) !important;
+}
+
+.chatRow{
+  position:relative;
+  overflow:hidden;
+}
+
+.chatRow .chatItem{
+  width:100%;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding-right:52px !important;
+  overflow:hidden;
+}
+
+.chatItem:focus,
+.chatItem:focus-visible,
+.chatMenuButton:focus,
+.chatMenuButton:focus-visible{
+  outline:none !important;
+}
+
+.chatItem:focus-visible{
+  box-shadow:
+    inset 2px 0 0 rgba(126,231,255,.38),
+    inset 0 0 0 1px rgba(255,255,255,.045) !important;
+}
+
+.chatTitleText{
+  display:block;
+  min-width:0;
+  flex:1 1 auto;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:clip;
+  -webkit-mask-image:linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - 22px),
+    transparent 100%
+  );
+  mask-image:linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - 22px),
+    transparent 100%
+  );
+}
+
+.chatMenuButton{
+  z-index:3;
+  top:50% !important;
+  right:8px !important;
+  width:34px !important;
+  height:34px !important;
+  transform:translateY(-50%) !important;
+  display:grid;
+  place-items:center;
+  border:1px solid transparent;
+  border-radius:11px !important;
+  background:rgba(8,12,18,.68);
+  color:rgba(184,196,211,.92) !important;
+  opacity:1 !important;
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+
+.chatMenuButton svg{
+  width:18px !important;
+  height:18px !important;
+  overflow:visible;
+}
+
+.chatMenuButton:hover,
+.chatRow:hover .chatMenuButton{
+  transform:translateY(-50%) !important;
+  border-color:rgba(255,255,255,.07);
+  background:rgba(255,255,255,.055) !important;
+  color:#eef4fb !important;
+}
+
+.chatMenuButton:active{
+  transform:translateY(-50%) scale(.96) !important;
+}
+
+.chatMenuButton:focus-visible{
+  box-shadow:0 0 0 1px rgba(126,231,255,.12) !important;
+}
+
+.chatItem.active + .chatMenuButton{
+  border-color:rgba(126,231,255,.07);
+  background:rgba(126,231,255,.045) !important;
+  color:#dcecf2 !important;
+}
+
+.feedbackRow .exportPdfButton{
+  border-color:rgba(126,231,255,.11);
+  background:rgba(126,231,255,.045);
+  color:#9fd6e1;
+}
+
+.feedbackRow .exportPdfButton:hover{
+  border-color:rgba(126,231,255,.18);
+  background:rgba(126,231,255,.07);
+  color:#c7edf4;
+}
+
+@media (max-width:760px){
+  .chatRow .chatItem{
+    padding-right:50px !important;
+  }
+
+  .chatMenuButton{
+    right:6px !important;
+    width:36px !important;
+    height:36px !important;
+  }
+}
