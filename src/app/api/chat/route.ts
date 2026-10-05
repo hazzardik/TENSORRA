@@ -28,6 +28,7 @@ import {
 } from "@/lib/tensorra/qdrant";
 import { providerTools } from "@/lib/tensorra/tools";
 import { normalizePlan } from "@/lib/tensorra/plans";
+import { evaluateSafetyRequest } from "@/lib/tensorra/safety-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -753,6 +754,7 @@ export async function POST(request: Request) {
 
   const effectiveMode = plan.effectiveMode;
   const modelConfig = THINKING_MODES[effectiveMode];
+  const safetyDecision = evaluateSafetyRequest(message);
 
   const { error: insertError } = await supabase.from("messages").insert({
     chat_id: chatId,
@@ -770,6 +772,10 @@ export async function POST(request: Request) {
       router_reason: plan.reason,
       requested_mode: requestedMode,
       effective_mode: effectiveMode,
+      safety_action: safetyDecision.action,
+      safety_category: safetyDecision.action === "block"
+        ? safetyDecision.category
+        : null,
     },
   });
 
@@ -784,6 +790,64 @@ export async function POST(request: Request) {
     mode: requestedMode,
     updated_at: new Date().toISOString(),
   }).eq("id", chatId).eq("user_id", userId);
+
+  if (safetyDecision.action === "block") {
+    const safetyReason = `safety:${safetyDecision.category}`;
+
+    await saveAssistantMessage({
+      supabase,
+      userId,
+      chatId,
+      content: safetyDecision.response,
+      modelName: "tensorra-policy-gate",
+      requestedMode,
+      effectiveMode,
+      reasoningEffort: "low",
+      verified: true,
+      toolsEnabled: [],
+      routerReason: [...plan.reason, safetyReason],
+      fellBack: false,
+      retried: false,
+      complexityScore: plan.complexityScore,
+      exportFormat: null,
+      plannerUsed: false,
+      contextSummaryUsed: false,
+      verifierUsed: false,
+      verifierRevised: false,
+    });
+
+    try {
+      await supabase.from("usage_events").insert({
+        user_id: userId,
+        chat_id: chatId,
+        event_type: "safety_block",
+        provider: "tensorra-policy-gate",
+        model_name: "deterministic-v1",
+        latency_ms: Date.now() - startedAt,
+        metadata: {
+          category: safetyDecision.category,
+          confidence: safetyDecision.confidence,
+          requested_mode: requestedMode,
+          effective_mode: effectiveMode,
+        },
+      });
+    } catch {
+      // Телеметрия не должна влиять на безопасный ответ.
+    }
+
+    return new Response(responseStreamFromText(safetyDecision.response), {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+        "X-Tensorra-Mode": effectiveMode,
+        "X-Tensorra-Model": "tensorra-policy-gate",
+        "X-Tensorra-Safety": "block",
+        "X-Tensorra-Safety-Category": safetyDecision.category,
+        "X-Tensorra-Verified": "1",
+      },
+    });
+  }
 
   const explicitMemory = extractMemory(message);
   if (explicitMemory) {
