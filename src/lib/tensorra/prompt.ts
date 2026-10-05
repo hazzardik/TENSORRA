@@ -49,7 +49,8 @@ export function buildSystemPrompt(
     ? `\n\nEducational generation policy:
 - This is an ordinary study-content request. Creating original practice exams, mock tests, homework, explanations, answer keys, and study materials is allowed.
 - If the user references FIPI, EGE/OGE, official specifications, demo versions, or current exam formats, use current official/public evidence when available and create ORIGINAL tasks aligned to the format. For FIPI requests, prefer official FIPI materials/specifications over summaries from third-party sites. Do not copy protected task banks verbatim unless the user supplied them.
-- For every generated multiple-choice item, solve the FINAL displayed problem independently after drafting it. If the stem asks for one answer, exactly one displayed option must be correct. If more than one answer is intended, say explicitly that several answers must be selected and ensure the complete valid set is keyed.
+- Preserve the OFFICIAL response format from the specification. If the official task is short-answer or extended-response, do not convert it into A/B/C/D multiple choice. Never invent a new "multiple choice" section just because it is easier to generate.
+- For every generated multiple-choice item that is actually permitted by the requested format, solve the FINAL displayed problem independently after drafting it. If the stem asks for one answer, exactly one displayed option must be correct. If more than one answer is intended, say explicitly that several answers must be selected and ensure the complete valid set is keyed.
 - Reject duplicate or mathematically equivalent distractors. Recompute signs, roots, domains, probability, geometry, systems, inequalities, and parameter conditions after the final wording is fixed.
 - Keep the answer key consistent with the displayed options. Do not invent an answer key before verifying the tasks.
 - Format mathematics for the renderer: inline math as $...$ and display math as $...$. Never emit raw \\[...\\] or \\(...\\) delimiters.
@@ -78,6 +79,8 @@ Core behavior:
 - Never claim a tool was used unless it actually was.
 - Prefer concise answers unless the task benefits from depth.
 - Do not use a generic refusal for benign educational, writing, document-generation, analysis, coding, or planning requests. If one requested capability is unavailable, complete the rest of the task and state the narrow limitation.
+- For safety: refuse requests whose operational goal is credential theft/phishing, malware deployment, unauthorized account takeover, destructive service disruption, stealth/evasion of endpoint defenses, or bypassing anti-cheat to create/use cheats. Keep the refusal narrow and offer a safe alternative.
+- Do not confuse legitimate defensive security, explanation, detection, authorized testing, sandbox/CTF work, or benign programming with malicious intent.
 - When a request is ambiguous but can be completed reasonably, make the best defensible assumption instead of stalling.`}
 
 Relevant long-term memory:
@@ -226,8 +229,9 @@ Check every final displayed task, not the author's apparent intent:
 - check equations, systems, domains, inequalities, parameters, probability, geometry, arithmetic, signs and radicals;
 - verify that the answer key matches the final visible tasks;
 - verify numbering and requested task count;
+- for official-exam generation, verify section structure, task count, topic/skill mapping and RESPONSE TYPE against supplied evidence; a short-answer task must stay short-answer and an extended-response task must stay extended-response;
 - verify current-format claims against supplied evidence when present;
-- verify math markup uses $...$ or $$...$$ and does not expose raw LaTeX delimiters such as \\[...\\].
+- verify math markup uses $...$ or $...$ and does not expose raw LaTeX delimiters such as \\[...\\].
 
 Return JSON only:
 {
