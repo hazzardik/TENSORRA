@@ -10,6 +10,7 @@ import {
 } from "@/lib/tensorra/plans";
 import InstallAppButton from "./install-app-button";
 import MessageContent from "./message-content";
+import { exportAnswerToPdf } from "@/lib/tensorra/pdf-export";
 
 type Chat = {
   id: string;
@@ -44,6 +45,7 @@ type Message = {
     planner_used?: boolean;
     verifier_used?: boolean;
     verifier_revised?: boolean;
+    export_format?: "pdf" | null;
   } | null;
 };
 
@@ -524,6 +526,9 @@ export default function ChatApp() {
       const plannerUsed = response.headers.get("X-Tensorra-Planner") === "1";
       const verified = response.headers.get("X-Tensorra-Verified") === "1";
       const verifierRevised = response.headers.get("X-Tensorra-Revised") === "1";
+      const exportFormat = response.headers.get("X-Tensorra-Export") === "pdf"
+        ? "pdf"
+        : null;
 
       setMessages((current) => {
         const copy = [...current];
@@ -545,6 +550,7 @@ export default function ChatApp() {
               verified,
               verifier_used: verified || verifierRevised,
               verifier_revised: verifierRevised,
+              export_format: exportFormat,
             },
           };
         }
@@ -702,6 +708,20 @@ export default function ChatApp() {
     if (!error) setAllowTraining(next);
   }
 
+  async function exportMessagePdf(message: Message) {
+    try {
+      const activeTitle = chats.find((chat) => chat.id === activeChatId)?.title;
+      await exportAnswerToPdf({
+        content: message.content,
+        title: activeTitle && activeTitle !== "Новый чат"
+          ? activeTitle
+          : "Материал TENSORRA",
+      });
+    } catch {
+      setNotice("Не удалось сформировать PDF. Попробуй ещё раз.");
+    }
+  }
+
   async function rateMessage(message: Message, rating: -1 | 1) {
     if (!message.id) return;
 
@@ -792,7 +812,7 @@ export default function ChatApp() {
           <div className="tensorMark">T</div>
           <div className="brandText">
             <strong>TENSORRA</strong>
-            <span>v0.15 · Core + plans</span>
+            <span>v0.16 · artifacts + intelligence</span>
           </div>
           <button
             className="iconButton mobileOnly"
@@ -832,7 +852,7 @@ export default function ChatApp() {
                 title={chat.title}
               >
                 {chat.pinned_at ? <span className="pinMark">◆</span> : null}
-                <span>{chat.title}</span>
+                <span className="chatTitleText">{chat.title}</span>
               </button>
 
               <button
@@ -1195,6 +1215,14 @@ export default function ChatApp() {
                           <button onClick={() => speakAnswer(message.content)}>
                             ◌ Озвучить
                           </button>
+                          {message.metadata?.export_format === "pdf" ? (
+                            <button
+                              className="exportPdfButton"
+                              onClick={() => void exportMessagePdf(message)}
+                            >
+                              ↓ Скачать PDF
+                            </button>
+                          ) : null}
                         </div>
 
                         {correctionFor === message.id ? (
