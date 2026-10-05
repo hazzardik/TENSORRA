@@ -851,7 +851,7 @@ export default function ChatApp() {
           <div className="tensorMark">T</div>
           <div className="brandText">
             <strong>TENSORRA</strong>
-            <span>v0.18 · eval + model registry</span>
+            <span>v0.19 · contextual core</span>
           </div>
           <button
             className="iconButton mobileOnly"
