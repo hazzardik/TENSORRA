@@ -585,6 +585,56 @@ async function recoverBenignStudyAnswer(args: {
   return data?.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
+async function continueInterruptedAnswer(args: {
+  baseUrl: string;
+  apiKey: string;
+  basePayload: Record<string, unknown>;
+  partial: string;
+  signal: AbortSignal;
+}) {
+  const messages = Array.isArray(args.basePayload.messages)
+    ? args.basePayload.messages
+    : [];
+
+  const continuationMessages = args.partial.trim()
+    ? [
+        ...messages,
+        { role: "assistant", content: args.partial },
+        {
+          role: "user",
+          content:
+            "Продолжи ответ ровно с места обрыва. Не повторяй уже написанное и не начинай ответ заново. Верни только продолжение.",
+        },
+      ]
+    : [
+        ...messages,
+        {
+          role: "system",
+          content:
+            "Предыдущая попытка оборвалась до получения текста из-за транспортной ошибки. Ответь на исходный запрос полностью сейчас.",
+        },
+      ];
+
+  const { response } = await providerFetch({
+    baseUrl: args.baseUrl,
+    apiKey: args.apiKey,
+    payload: {
+      ...args.basePayload,
+      stream: false,
+      messages: continuationMessages,
+    },
+    signal: args.signal,
+  });
+
+  if (!response.ok) return "";
+
+  const data = await response.json().catch(() => null) as {
+    choices?: Array<{ message?: { content?: string | null } }>;
+  } | null;
+
+  return data?.choices?.[0]?.message?.content?.trim() ?? "";
+}
+
 async function providerError(response: Response) {
   if (response.status === 429) {
     return new Response(
