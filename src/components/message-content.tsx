@@ -12,8 +12,8 @@ function normalizeMathMarkdown(content: string) {
     if (index % 2 === 1) return chunk;
 
     let normalized = chunk
-      .replace(/\\\[/g, "\n$$\n")
-      .replace(/\\\]/g, "\n$$\n")
+      .replace(/\\\[/g, () => "\n$\n")
+      .replace(/\\\]/g, () => "\n$\n")
       .replace(/\\\(/g, "$")
       .replace(/\\\)/g, "$");
 
