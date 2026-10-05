@@ -1,0 +1,86 @@
+name: TENSORRA Model Eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_url:
+        description: "OpenAI-compatible baseline /v1 base URL"
+        required: true
+        type: string
+      baseline_model:
+        description: "Baseline model id"
+        required: true
+        default: "openai/gpt-oss-20b"
+        type: string
+      candidate_url:
+        description: "OpenAI-compatible candidate /v1 base URL"
+        required: true
+        type: string
+      candidate_model:
+        description: "Candidate model id"
+        required: true
+        type: string
+      judge_url:
+        description: "OpenAI-compatible judge /v1 base URL"
+        required: true
+        type: string
+      judge_model:
+        description: "Judge model id"
+        required: true
+        type: string
+      limit:
+        description: "Optional number of eval cases; 0 means all"
+        required: false
+        default: "0"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate evaluation scripts
+        run: |
+          python -m py_compile \
+            model-lab/run_model_eval.py \
+            model-lab/promotion_gate.py
+
+      - name: Run position-balanced model evaluation
+        env:
+          BASELINE_API_KEY: ${{ secrets.TENSORRA_EVAL_BASELINE_API_KEY }}
+          CANDIDATE_API_KEY: ${{ secrets.TENSORRA_EVAL_CANDIDATE_API_KEY }}
+          JUDGE_API_KEY: ${{ secrets.TENSORRA_EVAL_JUDGE_API_KEY }}
+        run: |
+          python model-lab/run_model_eval.py \
+            --baseline-url "${{ inputs.baseline_url }}" \
+            --baseline-model "${{ inputs.baseline_model }}" \
+            --candidate-url "${{ inputs.candidate_url }}" \
+            --candidate-model "${{ inputs.candidate_model }}" \
+            --judge-url "${{ inputs.judge_url }}" \
+            --judge-model "${{ inputs.judge_model }}" \
+            --limit "${{ inputs.limit }}" \
+            --output artifacts/model-eval-results.jsonl \
+            --report artifacts/model-eval-report.json
+
+      - name: Promotion gate
+        run: |
+          python model-lab/promotion_gate.py artifacts/model-eval-report.json
+
+      - name: Upload evaluation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tensorra-model-eval-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
