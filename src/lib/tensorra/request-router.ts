@@ -91,14 +91,22 @@ export function planRequest(args: {
     { hasAttachment: args.hasAttachedDocument },
   );
 
-  const effectiveMode: ConcreteThinkingMode =
+  let effectiveMode: ConcreteThinkingMode =
     args.requestedMode === "auto"
       ? autoDecision.mode
       : args.requestedMode;
 
+  if (
+    args.requestedMode === "auto" &&
+    studyGeneration &&
+    (effectiveMode === "fast" || effectiveMode === "balanced")
+  ) {
+    effectiveMode = "deep";
+  }
+
   const complexityScore =
     args.requestedMode === "auto"
-      ? autoDecision.score
+      ? autoDecision.score + (studyGeneration ? 3 : 0)
       : 0;
 
   if (args.requestedMode === "auto") {
