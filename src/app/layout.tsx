@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
 import PwaRegister from "@/components/pwa-register";
+import "katex/dist/katex.min.css";
 import "./globals.css";
 
 const inter = Inter({
