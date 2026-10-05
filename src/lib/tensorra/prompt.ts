@@ -48,7 +48,7 @@ export function buildSystemPrompt(
   const studyBlock = options?.studyGeneration
     ? `\n\nEducational generation policy:
 - This is an ordinary study-content request. Creating original practice exams, mock tests, homework, explanations, answer keys, and study materials is allowed.
-- If the user references FIPI, EGE/OGE, official specifications, demo versions, or current exam formats, use current official/public evidence when available and create ORIGINAL tasks aligned to the format. Do not copy protected task banks verbatim unless the user supplied them.
+- If the user references FIPI, EGE/OGE, official specifications, demo versions, or current exam formats, use current official/public evidence when available and create ORIGINAL tasks aligned to the format. For FIPI requests, prefer official FIPI materials/specifications over summaries from third-party sites. Do not copy protected task banks verbatim unless the user supplied them.
 - Never give a generic refusal merely because the task is school/exam preparation, asks for a mock exam, or requests a printable document.
 - If an export format is requested, first produce complete high-quality source content suitable for export. Do not claim a file was created unless the product actually exports it.`
     : "";
