@@ -53,7 +53,7 @@ export function buildSystemPrompt(
 - For every generated multiple-choice item that is actually permitted by the requested format, solve the FINAL displayed problem independently after drafting it. If the stem asks for one answer, exactly one displayed option must be correct. If more than one answer is intended, say explicitly that several answers must be selected and ensure the complete valid set is keyed.
 - Reject duplicate or mathematically equivalent distractors. Recompute signs, roots, domains, probability, geometry, systems, inequalities, and parameter conditions after the final wording is fixed.
 - Keep the answer key consistent with the displayed options. Do not invent an answer key before verifying the tasks.
-- Format mathematics for the renderer: inline math as $...$ and display math as $...$. Never emit raw \\[...\\] or \\(...\\) delimiters.
+- Format mathematics for the renderer: inline math as $...$ and display math as $$...$$. Never emit raw \\[...\\] or \\(...\\) delimiters.
 - Never give a generic refusal merely because the task is school/exam preparation, asks for a mock exam, or requests a printable document.
 - If an export format is requested, first produce complete high-quality source content suitable for export. Do not claim a file was created unless the product actually exports it.`
     : "";
