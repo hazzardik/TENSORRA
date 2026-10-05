@@ -2450,3 +2450,65 @@ body{
   border-radius:999px;
   background:rgba(255,255,255,.1);
 }
+
+
+/* TENSORRA v0.19 — premium stop-generation control */
+.composer .sendButton.stopButton{
+  position:relative;
+  width:42px;
+  height:42px;
+  min-width:42px;
+  border-radius:50% !important;
+  border:1px solid rgba(162,220,232,.16) !important;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255,255,255,.075), transparent 42%),
+    rgba(13,18,26,.96) !important;
+  color:#d9e8ee !important;
+  box-shadow:
+    0 10px 28px rgba(0,0,0,.28),
+    inset 0 1px 0 rgba(255,255,255,.055),
+    0 0 0 1px rgba(126,231,255,.025) !important;
+  transform:none !important;
+  transition:
+    transform .16s ease,
+    border-color .16s ease,
+    background .16s ease,
+    box-shadow .16s ease !important;
+}
+
+.composer .sendButton.stopButton::before{
+  content:"";
+  position:absolute;
+  inset:5px;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.045);
+  pointer-events:none;
+}
+
+.composer .sendButton.stopButton:hover{
+  transform:scale(1.045) !important;
+  border-color:rgba(126,231,255,.28) !important;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255,255,255,.1), transparent 44%),
+    rgba(16,23,32,.98) !important;
+  box-shadow:
+    0 12px 32px rgba(0,0,0,.34),
+    0 0 22px rgba(126,231,255,.07),
+    inset 0 1px 0 rgba(255,255,255,.065) !important;
+}
+
+.composer .sendButton.stopButton:active{
+  transform:scale(.94) !important;
+}
+
+.stopIcon{
+  width:22px;
+  height:22px;
+  display:block;
+  fill:currentColor;
+  filter:drop-shadow(0 1px 5px rgba(126,231,255,.08));
+}
+
+.stopGlyph{
+  display:none !important;
+}
