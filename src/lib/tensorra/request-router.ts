@@ -97,7 +97,9 @@ export function planRequest(args: {
     ]) &&
     includesAny(routedText, [
       "состав", "созда", "сделай", "подготов", "сгенер", "придум",
-      "собери", "generate", "create", "make",
+      "собери", "дай вариант", "дай пробник", "нужен вариант",
+      "мне нужен вариант", "хочу вариант", "можно вариант",
+      "generate", "create", "make", "give me a mock", "need a practice test",
     ])
   );
 
