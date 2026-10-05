@@ -9,6 +9,7 @@ import {
 import { buildSystemPrompt } from "@/lib/tensorra/prompt";
 import { providerConfig } from "@/lib/tensorra/provider";
 import { evaluateSafetyRequest } from "@/lib/tensorra/safety-gate";
+import { productionModelFor } from "@/lib/tensorra/model-registry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -229,7 +230,7 @@ export async function POST(request: Request) {
     "Vision mode: inspect the supplied image carefully. Do not claim to see details that are not actually visible.",
   ].join("\n\n");
 
-  const model = process.env.TENSORRA_VISION_MODEL ?? "qwen/qwen3.8-27b";
+  const model = productionModelFor("vision");
   const upstream = await fetch(`${provider.baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
