@@ -153,6 +153,7 @@ export default function ChatApp() {
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const thinkingModeRef = useRef<ThinkingMode>("auto");
+  const activeRequestRef = useRef<AbortController | null>(null);
 
   const loadChats = useCallback(async () => {
     const { data, error } = await supabase
@@ -436,6 +437,9 @@ export default function ChatApp() {
 
     setInput("");
     if (composerInputRef.current) composerInputRef.current.style.height = "auto";
+    const requestController = new AbortController();
+    activeRequestRef.current = requestController;
+
     setLoading(true);
     setNotice("");
 
@@ -461,7 +465,11 @@ export default function ChatApp() {
         form.append("message", prompt);
         form.append("requestedMode", requestedMode);
         form.append("image", image);
-        response = await fetch("/api/vision", { method: "POST", body: form });
+        response = await fetch("/api/vision", {
+          method: "POST",
+          body: form,
+          signal: requestController.signal,
+        });
       } else {
         let documentIds: string[] = [];
 
@@ -473,6 +481,7 @@ export default function ChatApp() {
           const upload = await fetch("/api/documents", {
             method: "POST",
             body: form,
+            signal: requestController.signal,
           });
 
           if (!upload.ok) {
@@ -505,6 +514,7 @@ export default function ChatApp() {
             documentIds,
             requestedMode,
           }),
+          signal: requestController.signal,
         });
       }
 
@@ -586,28 +596,47 @@ export default function ChatApp() {
       await loadChats();
       await loadMessages(chatId);
     } catch (error) {
-      const textError = error instanceof Error
-        ? error.message
-        : "Произошла неизвестная ошибка.";
+      const aborted =
+        error instanceof DOMException && error.name === "AbortError";
 
       setMessages((current) => {
         const copy = [...current];
         const last = copy[copy.length - 1];
 
         if (last?.role === "assistant") {
-          copy[copy.length - 1] = {
-            ...last,
-            content: last.content
-              ? `${last.content}\n\n⚠️ Ответ прервался: ${textError}`
-              : `⚠️ ${textError}`,
-          };
+          if (aborted) {
+            copy[copy.length - 1] = {
+              ...last,
+              content: last.content
+                ? `${last.content}\n\n⏹ Генерация остановлена.`
+                : "⏹ Генерация остановлена.",
+            };
+          } else {
+            const textError = error instanceof Error
+              ? error.message
+              : "Произошла неизвестная ошибка.";
+
+            copy[copy.length - 1] = {
+              ...last,
+              content: last.content
+                ? `${last.content}\n\n⚠️ Ответ прервался: ${textError}`
+                : `⚠️ ${textError}`,
+            };
+          }
         }
 
         return copy;
       });
     } finally {
+      if (activeRequestRef.current === requestController) {
+        activeRequestRef.current = null;
+      }
       setLoading(false);
     }
+  }
+
+  function stopGeneration() {
+    activeRequestRef.current?.abort();
   }
 
   function startVoiceInput() {
@@ -1360,14 +1389,26 @@ export default function ChatApp() {
               rows={1}
             />
 
-            <button
-              className="sendButton"
-              type="submit"
-              disabled={(!input.trim() && !pendingAttachment) || loading}
-              aria-label="Отправить"
-            >
-              ↑
-            </button>
+            {loading ? (
+              <button
+                className="sendButton stopButton"
+                type="button"
+                onClick={stopGeneration}
+                aria-label="Остановить генерацию"
+                title="Остановить генерацию"
+              >
+                <span className="stopGlyph" />
+              </button>
+            ) : (
+              <button
+                className="sendButton"
+                type="submit"
+                disabled={!input.trim() && !pendingAttachment}
+                aria-label="Отправить"
+              >
+                ↑
+              </button>
+            )}
           </form>
 
           <div className="composerNote">
