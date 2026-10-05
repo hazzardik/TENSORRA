@@ -123,6 +123,7 @@ function modelLabel(model?: string | null) {
   if (normalized.includes("120b")) return "120B";
   if (normalized.includes("20b")) return "20B";
   if (normalized.includes("qwen")) return "Vision";
+  if (normalized.includes("policy-gate")) return "Policy";
   return null;
 }
 
@@ -850,7 +851,7 @@ export default function ChatApp() {
           <div className="tensorMark">T</div>
           <div className="brandText">
             <strong>TENSORRA</strong>
-            <span>v0.16 · artifacts + intelligence</span>
+            <span>v0.17 · safety + math + model lab</span>
           </div>
           <button
             className="iconButton mobileOnly"
