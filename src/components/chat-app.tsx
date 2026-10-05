@@ -1410,7 +1410,13 @@ export default function ChatApp() {
                 aria-label="Остановить генерацию"
                 title="Остановить генерацию"
               >
-                <span className="stopGlyph" />
+                <svg
+                  className="stopIcon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <rect x="7.5" y="7.5" width="9" height="9" rx="2.3" />
+                </svg>
               </button>
             ) : (
               <button
