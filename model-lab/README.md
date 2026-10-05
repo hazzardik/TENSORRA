@@ -61,6 +61,28 @@ python model-lab/train_sft_lora.py \
 
 Baseline hyperparameters live in `model-lab/configs/tensorra-20b-sft-v1.yaml`. They intentionally start near the maintained Hugging Face gpt-oss LoRA recipe instead of inventing a custom recipe before we have measurements.
 
+### Phase 3b — preference tuning (implemented starter)
+
+Human corrections are more valuable than a plain thumbs-down because they give a direct `chosen` vs `rejected` pair. Build a DPO dataset only from opt-in rows that contain an actual correction:
+
+```bash
+python model-lab/prepare_preferences.py raw_feedback.jsonl tensorra_dpo_train.jsonl \
+  --eval-output tensorra_dpo_eval.jsonl --eval-ratio 0.08
+```
+
+Then run the second-stage LoRA preference tuning:
+
+```bash
+python model-lab/train_dpo_lora.py \
+  --train tensorra_dpo_train.jsonl \
+  --eval tensorra_dpo_eval.jsonl \
+  --output artifacts/TENSORRA-20B-DPO-v1
+```
+
+The DPO baseline is deliberately conservative: low learning rate, one epoch and a promotion gate. A preference checkpoint is not promoted merely because DPO loss falls. It must beat the current candidate on Core Eval, preserve Russian quality, preserve tool-use behavior and show no safety regression.
+
+Policy-gate responses are excluded from SFT/DPO data. Product safety remains an independently testable layer instead of teaching the model to imitate canned refusals.
+
 Planned naming:
 - `TENSORRA-20B-SFT-v1`
 - `TENSORRA-20B-DPO-v1`
