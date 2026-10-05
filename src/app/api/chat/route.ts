@@ -1486,7 +1486,7 @@ export async function POST(request: Request) {
         if (!request.signal.aborted) {
           recovered = await continueInterruptedAnswer({
             baseUrl: provider.baseUrl,
-            apiKey: provider.apiKey,
+            apiKey: provider.apiKey!,
             basePayload,
             partial: complete,
             signal: request.signal,
@@ -1518,21 +1518,25 @@ export async function POST(request: Request) {
             contextSummaryUsed: Boolean(contextSummary),
           }).catch(() => undefined);
 
-          await supabase.from("usage_events").insert({
-            user_id: userId,
-            chat_id: chatId,
-            event_type: "completion_recovered",
-            provider: provider.providerName,
-            model_name: modelUsed,
-            latency_ms: Date.now() - startedAt,
-            metadata: {
-              requested_mode: requestedMode,
-              effective_mode: effectiveMode,
-              router_reason: plan.reason,
-              partial_chars: complete.length,
-              recovered_chars: recovered.length,
-            },
-          }).catch(() => undefined);
+          try {
+            await supabase.from("usage_events").insert({
+              user_id: userId,
+              chat_id: chatId,
+              event_type: "completion_recovered",
+              provider: provider.providerName,
+              model_name: modelUsed,
+              latency_ms: Date.now() - startedAt,
+              metadata: {
+                requested_mode: requestedMode,
+                effective_mode: effectiveMode,
+                router_reason: plan.reason,
+                partial_chars: complete.length,
+                recovered_chars: recovered.length,
+              },
+            });
+          } catch {
+            // Телеметрия не должна ломать восстановленный ответ.
+          }
 
           controller.close();
         } else {
