@@ -112,12 +112,20 @@ export function planRequest(args: {
   if (args.requestedMode === "auto") {
     reason.push(...autoDecision.reasons.map((item) => `auto:${item}`));
     reason.push(`auto-score:${autoDecision.score}`);
+    if (studyGeneration && effectiveMode === "deep") {
+      reason.push("study-quality:deep");
+    }
   } else {
     reason.push(`manual-mode:${args.requestedMode}`);
   }
 
   const useWeb = explicitWeb || currentness || (studyGeneration && text.includes("фипи"));
-  const useCode = codeSignals;
+  const useCode =
+    codeSignals ||
+    (studyGeneration && includesAny(text, [
+      "математ", "алгебр", "геометр", "вероятност", "статист", "физик",
+      "math", "algebra", "geometry", "probability", "statistics", "physics",
+    ]));
   const useMemory = memorySignals || personalDecisionSignals;
   const useKnowledge = args.hasAttachedDocument || knowledgeSignals;
   const extractMemory = durableMemorySignals;
