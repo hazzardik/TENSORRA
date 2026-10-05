@@ -737,6 +737,15 @@ export default function ChatApp() {
     if (!error) setAllowTraining(next);
   }
 
+  async function copyMessage(content: string) {
+    try {
+      await navigator.clipboard.writeText(content);
+      setNotice("Ответ скопирован.");
+    } catch {
+      setNotice("Не удалось скопировать ответ.");
+    }
+  }
+
   async function exportMessagePdf(message: Message) {
     try {
       const activeTitle = chats.find((chat) => chat.id === activeChatId)?.title;
@@ -1240,6 +1249,9 @@ export default function ChatApp() {
                             onClick={() => void rateMessage(message, -1)}
                           >
                             ↓ Плохо
+                          </button>
+                          <button onClick={() => void copyMessage(message.content)}>
+                            ⧉ Копировать
                           </button>
                           <button onClick={() => speakAnswer(message.content)}>
                             ◌ Озвучить
