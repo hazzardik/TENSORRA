@@ -2421,3 +2421,32 @@ body{
   border-radius:3px;
   background:currentColor;
 }
+
+
+/* TENSORRA v0.17 — math rendering */
+.markdownBody .katex{
+  font-size:1.04em;
+}
+
+.markdownBody .katex-display{
+  max-width:100%;
+  margin:16px 0;
+  padding:4px 0 7px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  text-align:left;
+  -webkit-overflow-scrolling:touch;
+}
+
+.markdownBody .katex-display > .katex{
+  text-align:left;
+}
+
+.markdownBody .katex-display::-webkit-scrollbar{
+  height:5px;
+}
+
+.markdownBody .katex-display::-webkit-scrollbar-thumb{
+  border-radius:999px;
+  background:rgba(255,255,255,.1);
+}
