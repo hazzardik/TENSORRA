@@ -90,6 +90,9 @@ def stable_key(prompt: str, answer: str) -> str:
 
 
 def convert(row: dict) -> dict | None:
+    if row.get("model_name") == "tensorra-policy-gate":
+        return None
+
     prompt = clean_text(row.get("user_prompt"))
     correction = clean_text(row.get("correction"))
     answer = correction or clean_text(row.get("assistant_answer"))
