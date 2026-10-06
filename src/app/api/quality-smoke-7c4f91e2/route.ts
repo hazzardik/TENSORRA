@@ -90,8 +90,13 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "provider_not_configured" }, { status: 503 });
   }
 
+  const only = request.nextUrl.searchParams.get("only");
+  const selectedCases = only
+    ? CASES.filter((item) => item.id === only)
+    : CASES;
+
   const results = [];
-  for (const item of CASES) {
+  for (const item of selectedCases) {
     const config = THINKING_MODES[item.mode];
     const activeTools = providerTools({
       web: Boolean(item.study),
