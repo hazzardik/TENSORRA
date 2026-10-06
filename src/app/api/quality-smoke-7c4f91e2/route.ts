@@ -109,7 +109,9 @@ export async function GET(request: NextRequest) {
         model: config.model,
         stream: false,
         temperature: config.temperature,
-        max_completion_tokens: Math.min(config.maxCompletionTokens, 3200),
+        max_completion_tokens: item.study
+          ? Math.max(config.maxCompletionTokens, 9000)
+          : Math.min(config.maxCompletionTokens, 4200),
         reasoning_effort: config.reasoningEffort,
         include_reasoning: false,
         messages: [
@@ -121,7 +123,17 @@ export async function GET(request: NextRequest) {
     });
 
     const raw = await response.text().catch(() => "");
-    let data: { choices?: Array<{ message?: { content?: string | null } }> } | null = null;
+    let data: {
+      choices?: Array<{
+        message?: { content?: string | null };
+        finish_reason?: string | null;
+      }>;
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        reasoning_tokens?: number;
+      };
+    } | null = null;
     try {
       data = raw ? JSON.parse(raw) : null;
     } catch {
@@ -136,6 +148,8 @@ export async function GET(request: NextRequest) {
       model: config.model,
       lint: lint(answer, item.prompt),
       answer,
+      finishReason: data?.choices?.[0]?.finish_reason ?? null,
+      usage: data?.usage ?? null,
       error: response.ok ? null : raw.slice(0, 1200),
     });
 
