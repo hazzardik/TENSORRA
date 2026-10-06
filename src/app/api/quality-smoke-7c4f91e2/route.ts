@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { providerConfig } from "@/lib/tensorra/provider";
 import { buildSystemPrompt } from "@/lib/tensorra/prompt";
 import { THINKING_MODES, thinkingInstructionForMode } from "@/lib/tensorra/model-router";
+import { providerTools } from "@/lib/tensorra/tools";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,9 +91,13 @@ export async function GET(request: NextRequest) {
   const results = [];
   for (const item of CASES) {
     const config = THINKING_MODES[item.mode];
+    const activeTools = providerTools({
+      web: Boolean(item.study),
+      code: Boolean(item.study) || item.id === "math-render",
+    });
     const systemPrompt = [
       buildSystemPrompt([], [], undefined, {
-        autonomousTools: false,
+        autonomousTools: true,
         studyGeneration: Boolean(item.study),
       }),
       thinkingInstructionForMode(item.mode),
@@ -118,6 +123,7 @@ export async function GET(request: NextRequest) {
           { role: "system", content: systemPrompt },
           { role: "user", content: item.prompt },
         ],
+        ...(activeTools.length ? { tools: activeTools } : {}),
       }),
       cache: "no-store",
     });
