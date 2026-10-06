@@ -584,9 +584,10 @@ async function recoverNaturalLanguageAnswer(args: {
     : [];
 
   const rewriteInstruction = {
-    role: "system",
+    role: "user",
     content:
-      "The draft answer accidentally exposed machine JSON. Rewrite it into the final user-facing answer in natural Russian prose/Markdown. Preserve all useful facts and structure, but do not show raw JSON braces, brackets, snake_case keys, internal schemas, planner data, or API-like fields. Use clear headings, bullets or a compact table where useful. Return only the finished answer. Do not mention this rewrite instruction.",
+      "The previous draft accidentally exposed machine JSON. Rewrite that draft into the final answer to my original request below. Preserve all useful facts and structure, but do not show raw JSON braces, brackets, snake_case keys, internal schemas, planner data, or API-like fields. Use natural Russian prose/Markdown with clear headings, bullets or a compact table where useful. Return only the finished answer. Do not mention this rewrite instruction.\n\nOriginal request:\n" +
+      args.userMessage.slice(0, 12000),
   };
 
   const { response } = await providerFetch({
