@@ -244,8 +244,8 @@ export async function verifyAndReviseAnswer(args: {
       model: args.config.model,
       stream: false,
       temperature: Math.min(args.config.temperature, 0.35),
-      max_completion_tokens: args.config.maxCompletionTokens,
-      reasoning_effort: "high",
+      max_completion_tokens: Math.min(args.config.maxCompletionTokens, 3800),
+      reasoning_effort: "medium",
       include_reasoning: false,
       messages: [
         { role: "system", content: args.systemPrompt },
