@@ -23,7 +23,7 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Model Lab syntax
-        run: python3 -m py_compile model-lab/prepare_sft.py model-lab/prepare_preferences.py model-lab/train_sft_lora.py model-lab/train_dpo_lora.py model-lab/compare_endpoints.py model-lab/run_model_eval.py model-lab/promotion_gate.py
+        run: python3 -m py_compile model-lab/prepare_sft.py model-lab/prepare_preferences.py model-lab/train_sft_lora.py model-lab/train_dpo_lora.py model-lab/compare_endpoints.py model-lab/run_model_eval.py model-lab/response_lint.py model-lab/promotion_gate.py
 
       - name: Typecheck
         run: npm run typecheck
