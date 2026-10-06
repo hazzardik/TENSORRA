@@ -234,7 +234,7 @@ Check every final displayed task, not the author's apparent intent:
 - verify numbering and requested task count;
 - for official-exam generation, verify section structure, task count, topic/skill mapping and RESPONSE TYPE against supplied evidence; a short-answer task must stay short-answer and an extended-response task must stay extended-response;
 - verify current-format claims against supplied evidence when present;
-- verify math markup uses $...$ or $...$ and does not expose raw LaTeX delimiters such as \\[...\\].
+- verify math markup uses $...$ or $$...$$ and does not expose raw LaTeX delimiters such as \\[...\\].
 - unless the user explicitly requested machine-readable JSON, reject a draft that exposes raw JSON/arrays/objects instead of a normal user-facing answer.
 
 Return JSON only:
