@@ -120,9 +120,13 @@ export async function GET(request: NextRequest) {
       cache: "no-store",
     });
 
-    const data = await response.json().catch(() => null) as
-      | { choices?: Array<{ message?: { content?: string | null } }> }
-      | null;
+    const raw = await response.text().catch(() => "");
+    let data: { choices?: Array<{ message?: { content?: string | null } }> } | null = null;
+    try {
+      data = raw ? JSON.parse(raw) : null;
+    } catch {
+      data = null;
+    }
     const answer = data?.choices?.[0]?.message?.content?.trim() ?? "";
 
     results.push({
@@ -132,7 +136,10 @@ export async function GET(request: NextRequest) {
       model: config.model,
       lint: lint(answer, item.prompt),
       answer,
+      error: response.ok ? null : raw.slice(0, 1200),
     });
+
+    await new Promise((resolve) => setTimeout(resolve, 900));
   }
 
   return Response.json(
