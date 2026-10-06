@@ -490,6 +490,17 @@ async function providerFetch(args: {
     };
   }
 
+  if (response.status === 413) {
+    await response.text().catch(() => "");
+    const fallback = await run(fallbackPayload);
+    return {
+      response: fallback,
+      modelUsed: fallbackModel,
+      fellBack: true,
+      retried: false,
+    };
+  }
+
   if (response.ok || !retryableStatuses.has(response.status)) {
     return { response, modelUsed, fellBack: false, retried };
   }
