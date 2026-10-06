@@ -1,0 +1,271 @@
+/* TENSORRA v0.21 — responsive Markdown tables */
+
+.markdownTableFrame {
+  width: 100%;
+  max-width: 100%;
+  margin: 16px 0 20px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(126,231,255,.035), transparent 32%),
+    linear-gradient(180deg, rgba(13,18,27,.94), rgba(8,12,18,.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.028),
+    0 14px 40px rgba(0,0,0,.16);
+  outline: none;
+}
+
+.markdownTableFrame:focus-visible {
+  border-color: rgba(126,231,255,.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.035),
+    0 0 0 2px rgba(126,231,255,.055),
+    0 14px 40px rgba(0,0,0,.18);
+}
+
+.markdownTableTopline {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(255,255,255,.055);
+  background: rgba(255,255,255,.018);
+  color: #78869a;
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.markdownTableSwipeHint {
+  display: none;
+  color: #718094;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+
+.markdownTableScroll {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(126,231,255,.16) transparent;
+}
+
+.markdownTableScroll::-webkit-scrollbar {
+  height: 7px;
+}
+
+.markdownTableScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.markdownTableScroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(126,231,255,.16);
+  background-clip: padding-box;
+}
+
+.markdownBody .markdownTable {
+  width: 100%;
+  min-width: 860px;
+  margin: 0 !important;
+  border: 0 !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  table-layout: auto !important;
+  background: transparent !important;
+  font-size: 14px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.markdownBody .markdownTableRow {
+  background: transparent;
+}
+
+.markdownBody .markdownTableBody .markdownTableRow:nth-child(even) .markdownTableCell {
+  background: rgba(255,255,255,.012);
+}
+
+.markdownBody .markdownTableBody .markdownTableRow:hover .markdownTableCell {
+  background: rgba(126,231,255,.025);
+}
+
+.markdownBody .markdownTableCell {
+  min-width: 170px;
+  max-width: 360px;
+  padding: 14px 16px !important;
+  vertical-align: top !important;
+  text-align: left;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+  color: #d6dee9;
+  border: 0 !important;
+  border-right: 1px solid rgba(255,255,255,.06) !important;
+  border-bottom: 1px solid rgba(255,255,255,.06) !important;
+  background-clip: padding-box;
+}
+
+.markdownBody .markdownTableHeaderCell {
+  min-width: 150px;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  color: #eef4fb;
+  font-size: 12px;
+  font-weight: 730;
+  line-height: 1.4;
+  letter-spacing: .005em;
+  background: #101620 !important;
+}
+
+.markdownBody .markdownTableCell:first-child {
+  min-width: 72px;
+  max-width: 140px;
+}
+
+.markdownBody .markdownTableCell:nth-child(2) {
+  min-width: 155px;
+}
+
+.markdownBody .markdownTableCell:last-child {
+  border-right: 0 !important;
+}
+
+.markdownBody .markdownTableBody .markdownTableRow:last-child .markdownTableCell {
+  border-bottom: 0 !important;
+}
+
+.markdownBody .markdownTableCell p {
+  margin: 0 !important;
+}
+
+.markdownBody .markdownTableCell p + p {
+  margin-top: 8px !important;
+}
+
+.markdownBody .markdownTableCell ul,
+.markdownBody .markdownTableCell ol {
+  margin: 0 !important;
+  padding-left: 18px !important;
+}
+
+.markdownBody .markdownTableCell li + li {
+  margin-top: 5px;
+}
+
+/* Give table-heavy answers more room on desktop instead of crushing columns. */
+@media (min-width: 1050px) {
+  .messageColumn:has(.markdownTableFrame) {
+    width: min(1180px, calc(100% - 52px));
+  }
+
+  .messageRow:has(.markdownTableFrame) {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .markdownBody .markdownTable {
+    min-width: 900px;
+  }
+}
+
+/* Tablet: keep real column widths and let the table scroll naturally. */
+@media (min-width: 761px) and (max-width: 1049px) {
+  .messageColumn:has(.markdownTableFrame) {
+    width: min(980px, calc(100% - 32px));
+  }
+
+  .markdownBody .markdownTable {
+    min-width: 820px;
+  }
+}
+
+/* Phone: never squeeze words into one-letter columns. Horizontal swipe is intentional. */
+@media (max-width: 760px) {
+  .messageColumn:has(.markdownTableFrame) {
+    width: calc(100% - 18px) !important;
+  }
+
+  .messageRow:has(.markdownTableFrame) {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .messageRow:has(.markdownTableFrame) > div:last-child,
+  .messageRow:has(.markdownTableFrame) .messageContent,
+  .messageRow:has(.markdownTableFrame) .markdownBody {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .markdownTableFrame {
+    margin: 13px 0 17px;
+    border-radius: 15px;
+  }
+
+  .markdownTableTopline {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 8px;
+  }
+
+  .markdownTableSwipeHint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .markdownBody .markdownTable {
+    width: auto;
+    min-width: 790px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .markdownBody .markdownTableCell {
+    min-width: 155px;
+    max-width: 280px;
+    padding: 12px 13px !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+  }
+
+  .markdownBody .markdownTableHeaderCell {
+    min-width: 145px;
+    font-size: 11px;
+  }
+
+  /* Keep the row number / first identifier visible while swiping wide tables. */
+  .markdownBody .markdownTableCell:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    min-width: 58px;
+    max-width: 96px;
+    background: #0d131c !important;
+    box-shadow: 1px 0 0 rgba(255,255,255,.06);
+  }
+
+  .markdownBody .markdownTableHeaderCell:first-child {
+    z-index: 3;
+    background: #111824 !important;
+  }
+
+  .markdownBody .markdownTableBody .markdownTableRow:nth-child(even) .markdownTableCell:first-child {
+    background: #0f151e !important;
+  }
+}
