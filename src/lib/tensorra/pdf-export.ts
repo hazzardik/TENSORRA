@@ -5,8 +5,48 @@ type RenderLine = {
   kind: "title" | "h1" | "h2" | "h3" | "body" | "bullet" | "code" | "quote";
 };
 
+function normalizeMathForPdf(value: string) {
+  let output = value
+    .replace(/\\\[/g, "")
+    .replace(/\\\]/g, "")
+    .replace(/\\\(/g, "")
+    .replace(/\\\)/g, "")
+    .replace(/\$\$/g, "")
+    .replace(/\$/g, "")
+    .replace(/\\boxed\{([^{}]+)\}/g, "$1")
+    .replace(/\\(?:d?frac|tfrac)\{([^{}]+)\}\{([^{}]+)\}/g, "($1)/($2)")
+    .replace(/\\sqrt\{([^{}]+)\}/g, "√($1)")
+    .replace(/\\begin\{(?:p|b|v|V)matrix\}/g, "[")
+    .replace(/\\end\{(?:p|b|v|V)matrix\}/g, "]")
+    .replace(/\\begin\{cases\}/g, "{ ")
+    .replace(/\\end\{cases\}/g, " }")
+    .replace(/\\begin\{aligned\}|\\end\{aligned\}/g, "")
+    .replace(/\\Rightarrow|\\implies/g, "⇒")
+    .replace(/\\Leftrightarrow/g, "⇔")
+    .replace(/\\leq?|\\le/g, "≤")
+    .replace(/\\geq?|\\ge/g, "≥")
+    .replace(/\\neq/g, "≠")
+    .replace(/\\pm/g, "±")
+    .replace(/\\times/g, "×")
+    .replace(/\\cdot/g, "·")
+    .replace(/\\angle/g, "∠")
+    .replace(/\\circ/g, "°")
+    .replace(/\\,/g, " ")
+    .replace(/\\;/g, " ")
+    .replace(/\\!/g, "")
+    .replace(/\\\\/g, "; ")
+    .replace(/&/g, " ")
+    .replace(/\^\{([^{}]+)\}/g, "^$1")
+    .replace(/_\{([^{}]+)\}/g, "_$1")
+    .replace(/\\left|\\right/g, "")
+    .replace(/\\text\{([^{}]+)\}/g, "$1");
+
+  output = output.replace(/\\[A-Za-z]+/g, "");
+  return output.replace(/\s{2,}/g, " ").trim();
+}
+
 function stripMarkdown(value: string) {
-  return value
+  const cleaned = value
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/__(.*?)__/g, "$1")
     .replace(/\*(.*?)\*/g, "$1")
@@ -14,6 +54,8 @@ function stripMarkdown(value: string) {
     .replace(/\x60([^\x60]+)\x60/g, "$1")
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
     .trim();
+
+  return normalizeMathForPdf(cleaned);
 }
 
 function parseMarkdown(markdown: string): RenderLine[] {
