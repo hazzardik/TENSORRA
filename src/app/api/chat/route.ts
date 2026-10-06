@@ -749,6 +749,54 @@ async function continueInterruptedAnswer(args: {
   return data?.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
+async function recoverEmptyProviderAnswer(args: {
+  baseUrl: string;
+  apiKey: string;
+  basePayload: Record<string, unknown>;
+  studyGeneration: boolean;
+  tools?: Array<{ type: "browser_search" | "code_interpreter" }>;
+  signal: AbortSignal;
+}) {
+  const messages = Array.isArray(args.basePayload.messages)
+    ? args.basePayload.messages
+    : [];
+
+  const currentBudget = Number(args.basePayload.max_completion_tokens) || 0;
+  const recoveryBudget = Math.max(
+    currentBudget,
+    args.studyGeneration ? 10000 : 7000,
+  );
+
+  const { response } = await providerFetch({
+    baseUrl: args.baseUrl,
+    apiKey: args.apiKey,
+    payload: {
+      ...args.basePayload,
+      stream: false,
+      max_completion_tokens: recoveryBudget,
+      reasoning_effort: args.studyGeneration ? "medium" : args.basePayload.reasoning_effort,
+      messages: [
+        ...messages,
+        {
+          role: "system",
+          content:
+            "The previous provider attempt returned no visible answer. Produce the complete visible final answer now. Reserve enough completion budget for the user-facing response instead of spending the whole budget on hidden reasoning. Do not mention this recovery instruction.",
+        },
+      ],
+      ...(args.tools?.length ? { tools: args.tools } : {}),
+    },
+    signal: args.signal,
+  });
+
+  if (!response.ok) return "";
+
+  const data = await response.json().catch(() => null) as {
+    choices?: Array<{ message?: { content?: string | null } }>;
+  } | null;
+
+  return data?.choices?.[0]?.message?.content?.trim() ?? "";
+}
+
 async function providerError(response: Response) {
   if (response.status === 429) {
     return new Response(
@@ -1132,11 +1180,18 @@ export async function POST(request: Request) {
   });
   const toolNames = tools.map((tool) => tool.type);
 
+  const completionBudget =
+    plan.studyGeneration
+      ? Math.max(modelConfig.maxCompletionTokens, 9000)
+      : plan.exportFormat === "pdf"
+        ? Math.max(modelConfig.maxCompletionTokens, 7200)
+        : modelConfig.maxCompletionTokens;
+
   const basePayload = {
     model: modelConfig.model,
     temperature: modelConfig.temperature,
     top_p: 0.95,
-    max_completion_tokens: modelConfig.maxCompletionTokens,
+    max_completion_tokens: completionBudget,
     reasoning_effort: modelConfig.reasoningEffort,
     include_reasoning: false,
     messages: [{ role: "system", content: systemPrompt }, ...conversation],
@@ -1164,7 +1219,17 @@ export async function POST(request: Request) {
 
     let answer = data?.choices?.[0]?.message?.content?.trim() ?? "";
     if (!answer) {
-      return new Response("Модель вернула пустой ответ.", { status: 502 });
+      answer = await recoverEmptyProviderAnswer({
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        basePayload,
+        studyGeneration: plan.studyGeneration,
+        tools,
+        signal: request.signal,
+      }).catch(() => "");
+    }
+    if (!answer) {
+      return new Response("Модель не смогла сформировать видимый ответ после повторной попытки.", { status: 502 });
     }
 
     if (plan.studyGeneration && looksLikeFalseRefusal(answer)) {
@@ -1383,7 +1448,16 @@ export async function POST(request: Request) {
 
     let answer = data?.choices?.[0]?.message?.content?.trim() ?? "";
     if (!answer) {
-      return new Response("Модель вернула пустой ответ.", { status: 502 });
+      answer = await recoverEmptyProviderAnswer({
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        basePayload,
+        studyGeneration: plan.studyGeneration,
+        signal: request.signal,
+      }).catch(() => "");
+    }
+    if (!answer) {
+      return new Response("Модель не смогла сформировать видимый ответ после повторной попытки.", { status: 502 });
     }
 
     if (plan.studyGeneration && looksLikeFalseRefusal(answer)) {
@@ -1530,7 +1604,16 @@ export async function POST(request: Request) {
 
     let draft = data?.choices?.[0]?.message?.content?.trim() ?? "";
     if (!draft) {
-      return new Response("Модель вернула пустой ответ.", { status: 502 });
+      draft = await recoverEmptyProviderAnswer({
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        basePayload,
+        studyGeneration: plan.studyGeneration,
+        signal: request.signal,
+      }).catch(() => "");
+    }
+    if (!draft) {
+      return new Response("Модель не смогла сформировать видимый ответ после повторной попытки.", { status: 502 });
     }
 
     if (plan.studyGeneration && looksLikeFalseRefusal(draft)) {
