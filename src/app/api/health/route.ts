@@ -17,7 +17,7 @@ export async function GET() {
   return Response.json(
     {
       service: "TENSORRA",
-      version: "0.20.0",
+      version: "0.22.0",
       status: ready ? "ready" : "configuration_required",
       checks: required,
       features: {
@@ -51,6 +51,9 @@ export async function GET() {
         pastYearStudyRecovery: true,
         userFacingJsonGuard: true,
         structuredAnswerFallback: true,
+        responseQualityLint: true,
+        mobileFirstAnswerContract: true,
+        technologicalVisualSystem: true,
         privateModelEvalRegistry: true,
         pdfArtifactExport: true,
         generationCancellation: true,
