@@ -529,6 +529,117 @@ async function providerFetch(args: {
   };
 }
 
+function userRequestedMachineJson(message: string) {
+  const text = message.toLocaleLowerCase();
+  return [
+    "json",
+    "в формате json",
+    "верни json",
+    "дай json",
+    "json schema",
+    "схема json",
+    "api payload",
+    "payload",
+    "машиночитаем",
+    "machine-readable",
+    "machine readable",
+  ].some((signal) => text.includes(signal));
+}
+
+function parseWholeJsonAnswer(text: string): unknown | null {
+  const trimmed = text.trim();
+  const unfenced = trimmed
+    .replace(/^\`\`\`(?:json)?\s*/i, "")
+    .replace(/\s*\`\`\`$/, "")
+    .trim();
+
+  if (!unfenced.startsWith("{") && !unfenced.startsWith("[")) return null;
+
+  try {
+    return JSON.parse(unfenced);
+  } catch {
+    return null;
+  }
+}
+
+function looksLikeUnexpectedJsonAnswer(answer: string, userMessage: string) {
+  if (userRequestedMachineJson(userMessage)) return false;
+  const parsed = parseWholeJsonAnswer(answer);
+  if (parsed === null) return false;
+
+  if (Array.isArray(parsed)) return parsed.length > 0;
+  return typeof parsed === "object";
+}
+
+async function recoverNaturalLanguageAnswer(args: {
+  baseUrl: string;
+  apiKey: string;
+  basePayload: Record<string, unknown>;
+  userMessage: string;
+  rawAnswer: string;
+  signal: AbortSignal;
+}) {
+  const messages = Array.isArray(args.basePayload.messages)
+    ? args.basePayload.messages
+    : [];
+
+  const rewriteInstruction = {
+    role: "system",
+    content:
+      "The draft answer accidentally exposed machine JSON. Rewrite it into the final user-facing answer in natural Russian prose/Markdown. Preserve all useful facts and structure, but do not show raw JSON braces, brackets, snake_case keys, internal schemas, planner data, or API-like fields. Use clear headings, bullets or a compact table where useful. Return only the finished answer. Do not mention this rewrite instruction.",
+  };
+
+  const { response } = await providerFetch({
+    baseUrl: args.baseUrl,
+    apiKey: args.apiKey,
+    payload: {
+      ...args.basePayload,
+      stream: false,
+      messages: [
+        ...messages,
+        { role: "assistant", content: args.rawAnswer.slice(0, 26000) },
+        rewriteInstruction,
+      ],
+    },
+    signal: args.signal,
+  });
+
+  if (!response.ok) return "";
+
+  const data = await response.json().catch(() => null) as {
+    choices?: Array<{ message?: { content?: string | null } }>;
+  } | null;
+
+  return data?.choices?.[0]?.message?.content?.trim() ?? "";
+}
+
+async function normalizeUserFacingAnswer(args: {
+  answer: string;
+  userMessage: string;
+  baseUrl: string;
+  apiKey: string;
+  basePayload: Record<string, unknown>;
+  signal: AbortSignal;
+}) {
+  if (!looksLikeUnexpectedJsonAnswer(args.answer, args.userMessage)) {
+    return { answer: args.answer, rewritten: false };
+  }
+
+  const rewritten = await recoverNaturalLanguageAnswer({
+    baseUrl: args.baseUrl,
+    apiKey: args.apiKey,
+    basePayload: args.basePayload,
+    userMessage: args.userMessage,
+    rawAnswer: args.answer,
+    signal: args.signal,
+  }).catch(() => "");
+
+  return {
+    answer: rewritten || args.answer,
+    rewritten: Boolean(rewritten),
+  };
+}
+
 function looksLikeFalseRefusal(text: string) {
   const sample = text.trim().toLocaleLowerCase().slice(0, 1600);
   if (!sample) return false;
