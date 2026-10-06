@@ -982,3 +982,71 @@ body::before{
     transition-duration:.01ms !important;
   }
 }
+
+
+/* Unified vector icon language */
+.uiIcon{
+  width:18px;
+  height:18px;
+  display:block;
+  flex:0 0 auto;
+}
+
+.menuIcon{
+  width:21px;
+  height:21px;
+}
+
+.newChatButton,
+.sideActions button,
+.toolStrip button{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.sideActionLead{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+
+.toolIcon{
+  width:15px;
+  height:15px;
+}
+
+.sendIcon{
+  width:23px;
+  height:23px;
+  display:block;
+}
+
+.newChatButton .uiIcon{
+  width:16px;
+  height:16px;
+  color:#9bdde8;
+}
+
+.sideActions .uiIcon{
+  width:16px;
+  height:16px;
+  color:#77879a;
+}
+
+.toolStrip .uiIcon{
+  color:currentColor;
+}
+
+@media(max-width:760px){
+  .newChatButton .uiIcon,
+  .sideActions .uiIcon{
+    width:17px;
+    height:17px;
+  }
+
+  .toolStrip button{
+    gap:6px;
+  }
+}
