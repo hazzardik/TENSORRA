@@ -98,7 +98,7 @@ export function evaluateSafetyRequest(
   const current = message.toLocaleLowerCase().replace(/ё/g, "е");
   const continuation =
     current.length <= 320 &&
-    /^(?:а\b|и\b|да\b|нет\b|тогда\b|ещ[её]\b|продолж|сделай|добавь|измени|переделай|так\s*же|также|тот\s*же|такой\s*же|what about|then|continue|same)/i.test(
+    /^(?:а|и|да|нет|тогда|ещ[её])(?=\s|[,.:;!?]|$)|^(?:продолж|сделай|добавь|измени|переделай|так\s*же|также|тот\s*же|такой\s*же|what about|then|continue|same)/i.test(
       current.trim(),
     );
 
