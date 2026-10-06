@@ -764,7 +764,7 @@ async function recoverEmptyProviderAnswer(args: {
   const currentBudget = Number(args.basePayload.max_completion_tokens) || 0;
   const recoveryBudget = Math.max(
     currentBudget,
-    args.studyGeneration ? 10000 : 7000,
+    args.studyGeneration ? 5200 : 5200,
   );
 
   const { response } = await providerFetch({
@@ -774,7 +774,7 @@ async function recoverEmptyProviderAnswer(args: {
       ...args.basePayload,
       stream: false,
       max_completion_tokens: recoveryBudget,
-      reasoning_effort: args.studyGeneration ? "medium" : args.basePayload.reasoning_effort,
+      reasoning_effort: args.studyGeneration ? "low" : args.basePayload.reasoning_effort,
       messages: [
         ...messages,
         {
@@ -1182,13 +1182,13 @@ export async function POST(request: Request) {
 
   const completionBudget =
     plan.studyGeneration
-      ? Math.max(modelConfig.maxCompletionTokens, 9000)
+      ? Math.min(Math.max(modelConfig.maxCompletionTokens, 5000), 5200)
       : plan.exportFormat === "pdf"
-        ? Math.max(modelConfig.maxCompletionTokens, 7200)
+        ? Math.min(Math.max(modelConfig.maxCompletionTokens, 5200), 5600)
         : modelConfig.maxCompletionTokens;
 
   const generationReasoningEffort =
-    plan.studyGeneration ? "medium" : modelConfig.reasoningEffort;
+    plan.studyGeneration ? "low" : modelConfig.reasoningEffort;
 
   const basePayload = {
     model: modelConfig.model,
