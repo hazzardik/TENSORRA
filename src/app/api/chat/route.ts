@@ -1187,12 +1187,15 @@ export async function POST(request: Request) {
         ? Math.max(modelConfig.maxCompletionTokens, 7200)
         : modelConfig.maxCompletionTokens;
 
+  const generationReasoningEffort =
+    plan.studyGeneration ? "medium" : modelConfig.reasoningEffort;
+
   const basePayload = {
     model: modelConfig.model,
     temperature: modelConfig.temperature,
     top_p: 0.95,
     max_completion_tokens: completionBudget,
-    reasoning_effort: modelConfig.reasoningEffort,
+    reasoning_effort: generationReasoningEffort,
     include_reasoning: false,
     messages: [{ role: "system", content: systemPrompt }, ...conversation],
   };
@@ -1339,7 +1342,7 @@ export async function POST(request: Request) {
       modelName: modelUsed,
       requestedMode,
       effectiveMode,
-      reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+      reasoningEffort: fellBack ? "low" : generationReasoningEffort,
       verified: postVerified,
       toolsEnabled: toolNames,
       routerReason: plan.reason,
@@ -1515,7 +1518,7 @@ export async function POST(request: Request) {
       modelName: modelUsed,
       requestedMode,
       effectiveMode,
-      reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+      reasoningEffort: fellBack ? "low" : generationReasoningEffort,
       verified,
       toolsEnabled: [],
       routerReason: plan.reason,
@@ -1672,7 +1675,7 @@ export async function POST(request: Request) {
       modelName: modelUsed,
       requestedMode,
       effectiveMode,
-      reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+      reasoningEffort: fellBack ? "low" : generationReasoningEffort,
       verified: verificationResult.verified,
       toolsEnabled: [],
       routerReason: plan.reason,
@@ -1803,7 +1806,7 @@ export async function POST(request: Request) {
           modelName: modelUsed,
           requestedMode,
           effectiveMode,
-          reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+          reasoningEffort: fellBack ? "low" : generationReasoningEffort,
           verified: modelConfig.verify,
           toolsEnabled: [],
           routerReason: plan.reason,
@@ -1868,7 +1871,7 @@ export async function POST(request: Request) {
             modelName: modelUsed,
             requestedMode,
             effectiveMode,
-            reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+            reasoningEffort: fellBack ? "low" : generationReasoningEffort,
             verified: false,
             toolsEnabled: [],
             routerReason: [...plan.reason, "stream_auto_recovered"],
@@ -1924,7 +1927,7 @@ export async function POST(request: Request) {
             modelName: modelUsed,
             requestedMode,
             effectiveMode,
-            reasoningEffort: fellBack ? "low" : modelConfig.reasoningEffort,
+            reasoningEffort: fellBack ? "low" : generationReasoningEffort,
             verified: false,
             toolsEnabled: [],
             routerReason: [...plan.reason, "stream_interrupted"],
