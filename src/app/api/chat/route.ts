@@ -1255,6 +1255,16 @@ export async function POST(request: Request) {
       verifierRevised = verificationResult.revised;
     }
 
+    const normalizedToolAnswer = await normalizeUserFacingAnswer({
+      answer,
+      userMessage: message,
+      baseUrl: provider.baseUrl,
+      apiKey: provider.apiKey,
+      basePayload,
+      signal: request.signal,
+    });
+    answer = normalizedToolAnswer.answer;
+
     await saveAssistantMessage({
       supabase,
       userId,
@@ -1412,6 +1422,16 @@ export async function POST(request: Request) {
       revised = verificationResult.revised;
     }
 
+    const normalizedStudyAnswer = await normalizeUserFacingAnswer({
+      answer,
+      userMessage: message,
+      baseUrl: provider.baseUrl,
+      apiKey: provider.apiKey,
+      basePayload,
+      signal: request.signal,
+    });
+    answer = normalizedStudyAnswer.answer;
+
     await saveAssistantMessage({
       supabase,
       userId,
@@ -1548,7 +1568,17 @@ export async function POST(request: Request) {
       revised: false,
     }));
 
-    const finalAnswer = verificationResult.answer;
+    let finalAnswer = verificationResult.answer;
+
+    const normalizedMaxAnswer = await normalizeUserFacingAnswer({
+      answer: finalAnswer,
+      userMessage: message,
+      baseUrl: provider.baseUrl,
+      apiKey: provider.apiKey,
+      basePayload,
+      signal: request.signal,
+    });
+    finalAnswer = normalizedMaxAnswer.answer;
 
     await saveAssistantMessage({
       supabase,
