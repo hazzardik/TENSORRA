@@ -62,7 +62,8 @@ export function thinkingInstructionForMode(mode: ConcreteThinkingMode) {
     return [
       "Thinking profile: FAST.",
       "Answer directly and efficiently. Prefer a short, useful answer over exhaustive coverage.",
-      "Do not skip necessary facts, but avoid unnecessary branches, long caveats, or broad exploration.",
+      "For definition/translation/short-answer requests, usually stay within 1-3 sentences unless the user asks for examples.",
+      "Do not add formulas, legal caveats, platform details, or broad exploration unless they materially help the request.",
     ].join(" ");
   }
 
@@ -78,6 +79,8 @@ export function thinkingInstructionForMode(mode: ConcreteThinkingMode) {
     return [
       "Thinking profile: DEEP.",
       "Analyze the problem from multiple angles. Challenge weak assumptions, surface meaningful trade-offs, failure modes, and alternatives.",
+      "Depth means better reasoning, not a longer final answer. Default to a compact complete response and expand only when the user asks for detail.",
+      "Avoid repetitive sub-bullets, generic legal caveats, or speculative platform rules that were not requested.",
       "Give a structured answer with stronger justification and more depth than BALANCED.",
       "Do not reveal private chain-of-thought; provide conclusions and concise supporting rationale instead.",
     ].join(" ");
@@ -86,7 +89,7 @@ export function thinkingInstructionForMode(mode: ConcreteThinkingMode) {
   return [
     "Thinking profile: MAXIMUM.",
     "Use a rigorous multi-pass approach before answering. Check assumptions, compare alternatives, consider counterarguments, edge cases, risks, and verification needs.",
-    "Prefer completeness and robustness over speed, while keeping the final response organized and readable.",
+    "Prefer completeness and robustness over speed, while keeping the final response organized and readable. Completeness does not mean padding: remove repetition and unsupported caveats.",
     "Do not reveal private chain-of-thought; provide conclusions, evidence, checks, and concise rationale instead.",
   ].join(" ");
 }
