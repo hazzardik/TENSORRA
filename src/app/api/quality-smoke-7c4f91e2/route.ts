@@ -117,9 +117,9 @@ export async function GET(request: NextRequest) {
         stream: false,
         temperature: config.temperature,
         max_completion_tokens: item.study
-          ? Math.max(config.maxCompletionTokens, 9000)
+          ? Math.min(Math.max(config.maxCompletionTokens, 5000), 5200)
           : Math.min(config.maxCompletionTokens, 4200),
-        reasoning_effort: item.study ? "medium" : config.reasoningEffort,
+        reasoning_effort: item.study ? "low" : config.reasoningEffort,
         include_reasoning: false,
         messages: [
           { role: "system", content: systemPrompt },
