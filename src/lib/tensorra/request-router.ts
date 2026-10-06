@@ -35,7 +35,7 @@ export function planRequest(args: {
   ]);
 
   const continuationStart =
-    /^(?:а\b|и\b|да\b|нет\b|тогда\b|ещ[её]\b|продолж|сделай|добавь|измени|переделай|так\s*же|также|тот\s*же|такой\s*же|в\s+(?:pdf|пдф))/i.test(text.trim());
+    /^(?:а|и|да|нет|тогда|ещ[её])(?=\s|[,.:;!?]|$)|^(?:продолж|сделай|добавь|измени|переделай|так\s*же|также|тот\s*же|такой\s*же|в\s+(?:pdf|пдф))/i.test(text.trim());
 
   const isLikelyContinuation =
     text.length <= 320 &&
