@@ -858,7 +858,9 @@ export default function ChatApp() {
             onClick={() => setSidebarOpen(false)}
             aria-label="Закрыть боковую панель"
           >
-            ×
+            <svg className="uiIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 7l10 10M17 7 7 17" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
+            </svg>
           </button>
         </div>
 
@@ -871,11 +873,22 @@ export default function ChatApp() {
             setSidebarOpen(false);
           }}
         >
-          <span>＋</span> Новый чат
+          <svg className="uiIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+          <span>Новый чат</span>
         </button>
 
         <div className="sideActions">
-          <button onClick={openMemory}>◈ Память</button>
+          <button onClick={openMemory}>
+            <span className="sideActionLead">
+              <svg className="uiIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M8 7.5a4 4 0 0 1 7.2-2.4A3.7 3.7 0 0 1 18 8.7c0 .5-.1 1-.3 1.4A4 4 0 0 1 17 18H8a4 4 0 0 1-1.4-7.7A4 4 0 0 1 8 7.5Z" stroke="currentColor" strokeWidth="1.55"/>
+                <path d="M9.5 9.2c.7-.7 1.7-1.1 2.7-1.1 1.2 0 2.2.5 2.9 1.3M9.7 14.6c.7.7 1.6 1.1 2.6 1.1 1.1 0 2-.4 2.7-1.2" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round"/>
+              </svg>
+              <span>Память</span>
+            </span>
+          </button>
         </div>
 
         <div className="chatList">
@@ -1029,7 +1042,9 @@ export default function ChatApp() {
             onClick={() => setSidebarOpen(true)}
             aria-label="Открыть боковую панель"
           >
-            ☰
+            <svg className="uiIcon menuIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 7.5h14M5 12h14M5 16.5h14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
+            </svg>
           </button>
 
           <div>
@@ -1355,7 +1370,10 @@ export default function ChatApp() {
               onClick={() => attachInput.current?.click()}
               disabled={loading}
             >
-              ＋ Прикрепить
+              <svg className="uiIcon toolIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m8.5 12.7 5.8-5.8a3.2 3.2 0 0 1 4.5 4.5l-7.1 7.1a4.5 4.5 0 1 1-6.4-6.4l7.2-7.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span>Прикрепить</span>
             </button>
 
             <button
@@ -1363,7 +1381,22 @@ export default function ChatApp() {
               type="button"
               onClick={startVoiceInput}
             >
-              {listening ? "■ Остановить" : "◌ Голос"}
+              {listening ? (
+                <>
+                  <svg className="uiIcon toolIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="7.5" y="7.5" width="9" height="9" rx="2.2" fill="currentColor"/>
+                  </svg>
+                  <span>Остановить</span>
+                </>
+              ) : (
+                <>
+                  <svg className="uiIcon toolIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="9" y="4.5" width="6" height="10" rx="3" stroke="currentColor" strokeWidth="1.6"/>
+                    <path d="M6.8 11.6a5.2 5.2 0 0 0 10.4 0M12 16.8v2.7M9.5 19.5h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                  </svg>
+                  <span>Голос</span>
+                </>
+              )}
             </button>
 
             <input
@@ -1425,7 +1458,9 @@ export default function ChatApp() {
                 disabled={!input.trim() && !pendingAttachment}
                 aria-label="Отправить"
               >
-                ↑
+                <svg className="sendIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 18V6M7.5 10.5 12 6l4.5 4.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </button>
             )}
           </form>
