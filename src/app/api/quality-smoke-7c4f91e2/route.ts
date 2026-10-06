@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
         max_completion_tokens: item.study
           ? Math.max(config.maxCompletionTokens, 9000)
           : Math.min(config.maxCompletionTokens, 4200),
-        reasoning_effort: config.reasoningEffort,
+        reasoning_effort: item.study ? "medium" : config.reasoningEffort,
         include_reasoning: false,
         messages: [
           { role: "system", content: systemPrompt },
