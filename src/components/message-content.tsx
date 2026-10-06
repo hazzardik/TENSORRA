@@ -144,7 +144,6 @@ function StructuredContent({ records }: { records: StructuredRecord[] }) {
   );
 }
 
-
 const ENV_NAMES = "pmatrix|bmatrix|vmatrix|Vmatrix|cases|aligned|array";
 const MATH_ENV_RE = new RegExp(
   "\\\\begin\\{(" + ENV_NAMES + ")\\}[\\s\\S]*?\\\\end\\{\\1\\}",
@@ -193,7 +192,6 @@ function looksLikeStandaloneMath(line: string) {
   const trimmed = line.trim();
   if (!trimmed || trimmed.includes("$")) return false;
 
-  // Normal prose with long Russian words should not be swallowed by math mode.
   if (/[А-Яа-яЁё]{3,}/.test(trimmed)) return false;
 
   const latexSignal =
@@ -246,8 +244,6 @@ function normalizeTextChunk(chunk: string) {
     .replace(/\\\(([\s\S]*?)\\\)/g, (_match, inner: string) =>
       "$" + inner.trim() + "$",
     )
-    // Some provider outputs put a single "$" on its own line as if it were
-    // a display delimiter. Treat it as "$$" before Markdown parsing.
     .replace(/^\s*\$\s*$/gm, () => "$$");
 
   normalized = wrapBareEnvironments(normalized);
@@ -259,7 +255,6 @@ function normalizeTextChunk(chunk: string) {
 }
 
 function normalizeMathMarkdown(content: string) {
-  // Never rewrite fenced code blocks: LaTeX/code examples inside them are data.
   const chunks = content.split(/(```[\s\S]*?```)/g);
 
   return chunks
@@ -306,6 +301,39 @@ export default function MessageContent({ content }: { content: string }) {
           ),
           code: ({ children, className }) => (
             <code className={className}>{children}</code>
+          ),
+          table: ({ children }) => (
+            <div
+              className="markdownTableFrame"
+              role="region"
+              aria-label="Таблица в ответе TENSORRA"
+              tabIndex={0}
+            >
+              <div className="markdownTableTopline" aria-hidden="true">
+                <span>Таблица</span>
+                <span className="markdownTableSwipeHint">Свайп по горизонтали ↔</span>
+              </div>
+              <div className="markdownTableScroll">
+                <table className="markdownTable">{children}</table>
+              </div>
+            </div>
+          ),
+          thead: ({ children }) => (
+            <thead className="markdownTableHead">{children}</thead>
+          ),
+          tbody: ({ children }) => (
+            <tbody className="markdownTableBody">{children}</tbody>
+          ),
+          tr: ({ children }) => (
+            <tr className="markdownTableRow">{children}</tr>
+          ),
+          th: ({ children }) => (
+            <th className="markdownTableCell markdownTableHeaderCell">
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className="markdownTableCell">{children}</td>
           ),
         }}
       >
