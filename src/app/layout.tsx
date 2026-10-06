@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import PwaRegister from "@/components/pwa-register";
 import "katex/dist/katex.min.css";
 import "./globals.css";
+import "./table-responsive.css";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
