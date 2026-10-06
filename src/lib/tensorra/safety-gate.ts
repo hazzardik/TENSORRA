@@ -103,6 +103,14 @@ export function evaluateSafetyRequest(
     );
 
   const defensiveCurrent = isDefensive(current);
+
+  if (continuation && recentUserContext.trim() && !defensiveCurrent) {
+    const inheritedDecision = evaluateSafetyRequest(recentUserContext);
+    if (inheritedDecision.action === "block") {
+      return inheritedDecision;
+    }
+  }
+
   const inherited = continuation && !defensiveCurrent
     ? recentUserContext.toLocaleLowerCase().replace(/ё/g, "е").slice(-4000)
     : "";
