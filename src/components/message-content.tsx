@@ -5,6 +5,146 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 
+type StructuredRecord = Record<string, unknown>;
+
+const STRUCTURED_LABELS: Record<string, string> = {
+  title: "Название",
+  description: "Описание",
+  required_resources: "Что понадобится",
+  potential_revenue: "Потенциальный доход",
+  steps_to_start: "Как начать",
+  advantages: "Плюсы",
+  disadvantages: "Минусы",
+  pros: "Плюсы",
+  cons: "Минусы",
+  risks: "Риски",
+  target_audience: "Целевая аудитория",
+  audience: "Аудитория",
+  cost: "Затраты",
+  startup_cost: "Стартовые затраты",
+  time_to_start: "Срок запуска",
+};
+
+function parseContentJson(content: string): unknown | null {
+  const trimmed = content.trim();
+  const unfenced = trimmed
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+
+  if (!unfenced.startsWith("[") && !unfenced.startsWith("{")) return null;
+
+  try {
+    return JSON.parse(unfenced);
+  } catch {
+    return null;
+  }
+}
+
+function isContentRecord(value: unknown): value is StructuredRecord {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Object.keys(value as StructuredRecord);
+  return keys.includes("title") && (
+    keys.includes("description") ||
+    keys.includes("steps_to_start") ||
+    keys.includes("required_resources") ||
+    keys.includes("potential_revenue")
+  );
+}
+
+function contentRecords(value: unknown): StructuredRecord[] | null {
+  if (Array.isArray(value) && value.length && value.every(isContentRecord)) {
+    return value;
+  }
+  if (isContentRecord(value)) return [value];
+  return null;
+}
+
+function humanizeStructuredKey(key: string) {
+  if (STRUCTURED_LABELS[key]) return STRUCTURED_LABELS[key];
+  const spaced = key.replace(/_/g, " ").trim();
+  return spaced ? spaced.charAt(0).toLocaleUpperCase() + spaced.slice(1) : key;
+}
+
+function StructuredValue({ value }: { value: unknown }) {
+  if (Array.isArray(value)) {
+    return (
+      <ul className="structuredList">
+        {value.map((item, index) => (
+          <li key={index}>
+            {typeof item === "object" && item !== null
+              ? JSON.stringify(item)
+              : String(item)}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (value && typeof value === "object") {
+    return (
+      <div className="structuredNested">
+        {Object.entries(value as StructuredRecord).map(([key, nested]) => (
+          <div key={key}>
+            <strong>{humanizeStructuredKey(key)}:</strong>{" "}
+            {Array.isArray(nested) ? (
+              <StructuredValue value={nested} />
+            ) : (
+              String(nested)
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return <>{String(value ?? "")}</>;
+}
+
+function StructuredContent({ records }: { records: StructuredRecord[] }) {
+  return (
+    <div className="structuredAnswerGrid">
+      {records.map((record, index) => {
+        const title = typeof record.title === "string"
+          ? record.title
+          : `Вариант ${index + 1}`;
+
+        const entries = Object.entries(record).filter(
+          ([key]) => key !== "title" && key !== "description",
+        );
+
+        return (
+          <section className="structuredAnswerCard" key={index}>
+            <div className="structuredCardNumber">
+              {String(index + 1).padStart(2, "0")}
+            </div>
+            <h3>{title}</h3>
+            {typeof record.description === "string" ? (
+              <p className="structuredDescription">{record.description}</p>
+            ) : null}
+
+            {entries.length ? (
+              <div className="structuredFields">
+                {entries.map(([key, value]) => (
+                  <div className="structuredField" key={key}>
+                    <div className="structuredFieldLabel">
+                      {humanizeStructuredKey(key)}
+                    </div>
+                    <div className="structuredFieldValue">
+                      <StructuredValue value={value} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+
 const ENV_NAMES = "pmatrix|bmatrix|vmatrix|Vmatrix|cases|aligned|array";
 const MATH_ENV_RE = new RegExp(
   "\\\\begin\\{(" + ENV_NAMES + ")\\}[\\s\\S]*?\\\\end\\{\\1\\}",
@@ -128,6 +268,17 @@ function normalizeMathMarkdown(content: string) {
 }
 
 export default function MessageContent({ content }: { content: string }) {
+  const parsed = parseContentJson(content);
+  const records = contentRecords(parsed);
+
+  if (records) {
+    return (
+      <div className="markdownBody structuredMarkdownBody">
+        <StructuredContent records={records} />
+      </div>
+    );
+  }
+
   const normalized = normalizeMathMarkdown(content);
 
   return (
