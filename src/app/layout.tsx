@@ -5,6 +5,7 @@ import PwaRegister from "@/components/pwa-register";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import "./table-responsive.css";
+import "./design-v022.css";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
